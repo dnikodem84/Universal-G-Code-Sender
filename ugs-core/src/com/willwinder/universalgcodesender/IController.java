@@ -1,5 +1,5 @@
 /*
-    Copyright 2015-2018 Will Winder
+    Copyright 2015-2024 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -18,20 +18,21 @@
 */
 package com.willwinder.universalgcodesender;
 
+import com.willwinder.universalgcodesender.communicator.ICommunicator;
 import com.willwinder.universalgcodesender.connection.ConnectionDriver;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettings;
 import com.willwinder.universalgcodesender.gcode.GcodeState;
+import com.willwinder.universalgcodesender.gcode.ICommandCreator;
 import com.willwinder.universalgcodesender.listeners.ControllerListener;
 import com.willwinder.universalgcodesender.listeners.ControllerStatus;
 import com.willwinder.universalgcodesender.model.Axis;
-import com.willwinder.universalgcodesender.model.Overrides;
+import com.willwinder.universalgcodesender.model.CommunicatorState;
 import com.willwinder.universalgcodesender.model.PartialPosition;
-import com.willwinder.universalgcodesender.model.UGSEvent.ControlState;
 import com.willwinder.universalgcodesender.model.UnitUtils;
-import com.willwinder.universalgcodesender.model.UnitUtils.Units;
 import com.willwinder.universalgcodesender.services.MessageService;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
 import com.willwinder.universalgcodesender.utils.IGcodeStreamReader;
+import com.willwinder.universalgcodesender.firmware.IOverrideManager;
 
 import java.util.Optional;
 
@@ -67,9 +68,15 @@ public interface IController {
     Actions
     */
     void performHomingCycle() throws Exception;
-    void returnToHome() throws Exception;
+
+    /**
+     * Returns machine to home location, throw an exception if not supported.
+     *
+     * @param safetyHeightInMm the safety height to clear when returning to home
+     */
+    void returnToHome(double safetyHeightInMm) throws Exception;
     void resetCoordinatesToZero() throws Exception;
-    void resetCoordinateToZero(final Axis coord) throws Exception;
+    void resetCoordinateToZero(final Axis axis) throws Exception;
 
     /**
      * Sets the work position for any given axis to the position
@@ -79,7 +86,10 @@ public interface IController {
      */
     void setWorkPosition(PartialPosition axisPosition) throws Exception;
 
-
+    /**
+     * Triggers that the door is open
+     */
+    void openDoor() throws Exception;
 
     void killAlarmLock() throws Exception;
     void toggleCheckMode() throws Exception;
@@ -87,19 +97,22 @@ public interface IController {
     void issueSoftReset() throws Exception;
 
     /**
-     * Jogs the machine in the direction specified by vector dirX,
-     * dirY, dirZ given the direction as 1, 0 or -1. The distance is specified by stepSize in the given units.
+     * Requests a status report from the controller with position and current state.
+     * This is usually used for updating the GUI with the live state of the machine.
      *
-     * @param dirX if the jogging should happen in X-direction, possible values are 1, 0 or -1
-     * @param dirY if the jogging should happen in Y-direction, possible values are 1, 0 or -1
-     * @param dirZ if the jogging should happen in Z-direction, possible values are 1, 0 or -1
-     * @param stepSize how long should we jog and is given in mm or inches
-     * @param feedRate how fast should we jog in the direction
-     * @param units the units of the stepSize and feed rate
+     * @throws Exception if the request couldn't be made
+     */
+    void requestStatusReport() throws Exception;
+
+    /**
+     * Jogs the machine by a specified direction given by the partial position.
+     * The distance is specified by the given units and can be a positive or negative value.
+     *
+     * @param distance how long to jog along each axis.
+     * @param feedRate how fast should we jog in the given direction
      * @throws Exception if something went wrong when jogging
      */
-    void jogMachine(int dirX, int dirY, int dirZ,
-                    double stepSize, double feedRate, Units units) throws Exception;
+    void jogMachine(PartialPosition distance, double feedRate) throws Exception;
 
 
     /**
@@ -115,11 +128,6 @@ public interface IController {
      */
     void probe(String axis, double feedRate, double distance, UnitUtils.Units units) throws Exception;
     void offsetTool(String axis, double offset, UnitUtils.Units units) throws Exception;
-
-    /*
-    Overrides
-    */
-    void sendOverrideCommand(Overrides command) throws Exception;
 
     /*
     Behavior
@@ -143,7 +151,7 @@ public interface IController {
     /*
     Stream information
     */
-    Boolean isReadyToReceiveCommands() throws Exception;
+    Boolean isReadyToReceiveCommands() throws ControllerException;
     Boolean isReadyToStreamFile() throws Exception;
     Boolean isStreaming();
     long getSendDuration();
@@ -163,26 +171,19 @@ public interface IController {
     Boolean isPaused();
     Boolean isIdle();
     void cancelSend() throws Exception;
-    ControlState getControlState();
+    void cancelJog() throws Exception;
+    CommunicatorState getCommunicatorState();
 
     /**
      * In case a controller reset is detected.
      */
     void resetBuffers();
-
-    /**
-     * Indicator to abstract GUIBackend implementation that the contract class
-     * will handle ALL state change events. When this returns true it means
-     * things like completing the final command in a stream will not
-     * automatically re-enable buttons.
-     */
-    Boolean handlesAllStateChangeEvents();
     
     /*
     Stream content
     */
     GcodeCommand createCommand(String gcode) throws Exception;
-    void sendCommandImmediately(GcodeCommand cmd) throws Exception;
+    void sendCommandImmediately(GcodeCommand cmd) throws ControllerException;
     void queueStream(IGcodeStreamReader r);
 
     /**
@@ -223,4 +224,28 @@ public interface IController {
      * @return the current controller status
      */
     ControllerStatus getControllerStatus();
+
+
+    /**
+     * Returns a file service for managing files on the controller. This service will be available if the controller
+     * reports the capability {@link CapabilitiesConstants#FILE_SYSTEM}
+     *
+     * @return a file service
+     */
+    IFileService getFileService();
+
+    /**
+     * A command creator responsible for creating commands specifically for this
+     * type of controller.
+     *
+     * @return a command creator for this controller
+     */
+    ICommandCreator getCommandCreator();
+
+    /**
+     * Gets the manager for handling overrides.
+     *
+     * @return the override manager.
+     */
+    IOverrideManager getOverrideManager();
 }

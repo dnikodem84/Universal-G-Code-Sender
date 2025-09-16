@@ -1,5 +1,5 @@
 /*
-    Copywrite 2013 Will Winder
+    Copyright 2013 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -85,5 +85,35 @@ public class UtilsTest {
         // TODO review the generated test code and remove the default call to fail.
         fail("The test case is a prototype.");
         */
+    }
+
+    @Test
+    public void roundToNearestStepValueWithOnePercentIncrements() {
+        assertEquals("Should round to lowest value", 0.01f, Utils.roundToNearestStepValue(0.001f, 0.01f, 2.00f, 0.01f), 0.0001f);
+        assertEquals(0.01f, Utils.roundToNearestStepValue(0.014f, 0.01f, 2.00f, 0.01f), 0.0001f);
+        assertEquals(0.02f, Utils.roundToNearestStepValue(0.015f, 0.01f, 2.00f, 0.01f), 0.0001f);
+        assertEquals(1.00f, Utils.roundToNearestStepValue(1.001f, 0.01f, 2.00f, 0.01f), 0.0001f);
+        assertEquals(2.00f, Utils.roundToNearestStepValue(2.001f, 0.01f, 2.00f, 0.01f), 0.0001f);
+        assertEquals(2.00f, Utils.roundToNearestStepValue(1.995f, 0.01f, 2.00f, 0.01f), 0.0001f);
+    }
+
+    @Test
+    public void roundToNearestStepValueWithOnePercentIncrementsAsIntegerValues() {
+        assertEquals("Should round to lowest value", 1, Utils.roundToNearestStepValue(0.1, 1, 200, 1), 0.01);
+        assertEquals(1d, Utils.roundToNearestStepValue(1.4, 1, 200, 1), 0.01);
+        assertEquals(2d, Utils.roundToNearestStepValue(1.5, 1, 200, 1), 0.01);
+        assertEquals(100d, Utils.roundToNearestStepValue(100.1, 1, 200, 1), 0.01);
+        assertEquals(200d, Utils.roundToNearestStepValue(200.1, 1, 200, 1), 0.01);
+        assertEquals(200d, Utils.roundToNearestStepValue(199.5, 1, 200, 1), 0.01);
+    }
+
+    @Test
+    public void roundToNearestStepValueWith25PercentIncrements() {
+        assertEquals(0.25f, Utils.roundToNearestStepValue(0.001f, 0.25f, 1.00f, 0.25f), 0.0001f);
+        assertEquals(0.25f, Utils.roundToNearestStepValue(0.24f, 0.25f, 1.00f, 0.25f), 0.0001f);
+        assertEquals(0.25f, Utils.roundToNearestStepValue(0.30f, 0.25f, 1.00f, 0.25f), 0.0001f);
+        assertEquals(0.50f, Utils.roundToNearestStepValue(0.375f, 0.25f, 1.00f, 0.25f), 0.0001f);
+        assertEquals(0.75f, Utils.roundToNearestStepValue(0.76f, 0.25f, 1.00f, 0.25f), 0.0001f);
+        assertEquals(1f, Utils.roundToNearestStepValue(2f, 0.25f, 1.00f, 0.25f), 0.0001f);
     }
 }

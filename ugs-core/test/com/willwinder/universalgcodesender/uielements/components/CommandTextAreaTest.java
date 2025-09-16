@@ -1,5 +1,5 @@
 /*
-    Copywrite 2016 Will Winder
+    Copyright 2016 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -18,7 +18,6 @@
  */
 package com.willwinder.universalgcodesender.uielements.components;
 
-import com.willwinder.universalgcodesender.uielements.components.CommandTextArea;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.utils.GUIHelpers;
 import java.awt.event.KeyEvent;
@@ -121,6 +120,40 @@ public class CommandTextAreaTest {
         EasyMock.replay(backend);
 
         cta.setText(command);
+        cta.action(null);
+
+        assertEquals("", cta.getText());
+
+        EasyMock.verify(backend);
+    }
+
+    @Test
+    public void actionShouldSendEmptyCommand() throws Exception {
+        backend.sendGcodeCommand("");
+        EasyMock.expect(EasyMock.expectLastCall()).once();
+        EasyMock.replay(backend);
+
+        cta.setText("");
+        cta.action(null);
+
+        assertEquals("", cta.getText());
+
+        EasyMock.verify(backend);
+    }
+
+    @Test
+    public void actionShouldSendMultilineCommands() throws Exception {
+        backend.sendGcodeCommand("1");
+        EasyMock.expect(EasyMock.expectLastCall()).once();
+        backend.sendGcodeCommand("2");
+        EasyMock.expect(EasyMock.expectLastCall()).once();
+        backend.sendGcodeCommand("3");
+        EasyMock.expect(EasyMock.expectLastCall()).once();
+        backend.sendGcodeCommand("4");
+        EasyMock.expect(EasyMock.expectLastCall()).once();
+        EasyMock.replay(backend);
+
+        cta.setText("1\n2\r\n3\n\r4\r");
         cta.action(null);
 
         assertEquals("", cta.getText());

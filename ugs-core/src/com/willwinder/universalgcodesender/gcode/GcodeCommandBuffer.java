@@ -5,7 +5,7 @@
  */
 
 /*
-    Copywrite 2012 Will Winder
+    Copyright 2012 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -60,19 +60,6 @@ public class GcodeCommandBuffer {
         }
         
         return this.currentCommand();
-    }
-    
-    public GcodeCommand appendCommandString(String commandString) {
-        GcodeCommand command = new GcodeCommand(commandString);
-        command.setCommandNumber(this.numCommands++);
-        this.commandQueue.add(command);
-        
-        // Preload first command, or next command if the first batch finished.
-        if (this.currentCommand == null || this.currentCommand.isSent()) {
-            this.nextCommand();
-        }
-        
-        return command;
     }
     
     public void clearBuffer() {

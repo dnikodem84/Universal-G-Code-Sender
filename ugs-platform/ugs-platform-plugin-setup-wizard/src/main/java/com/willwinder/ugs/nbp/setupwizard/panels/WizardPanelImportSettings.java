@@ -1,3 +1,21 @@
+/*
+    Copyright 2018-2020 Will Winder
+
+    This file is part of Universal Gcode Sender (UGS).
+
+    UGS is free software: you can redistribute it and/or modify
+    it under the terms of the GNU General Public License as published by
+    the Free Software Foundation, either version 3 of the License, or
+    (at your option) any later version.
+
+    UGS is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+    GNU General Public License for more details.
+
+    You should have received a copy of the GNU General Public License
+    along with UGS.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package com.willwinder.ugs.nbp.setupwizard.panels;
 
 import com.willwinder.ugs.nbp.setupwizard.AbstractWizardPanel;
@@ -6,6 +24,7 @@ import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
 import com.willwinder.universalgcodesender.firmware.FirmwareSettingsFile;
 import com.willwinder.universalgcodesender.i18n.Localization;
 import com.willwinder.universalgcodesender.model.BackendAPI;
+import com.willwinder.universalgcodesender.uielements.FileOpenDialog;
 import com.willwinder.universalgcodesender.uielements.components.FirmwareSettingsFileTypeFilter;
 import com.willwinder.universalgcodesender.uielements.components.RoundedPanel;
 import com.willwinder.universalgcodesender.uielements.helpers.ThemeColors;
@@ -15,8 +34,6 @@ import net.miginfocom.swing.MigLayout;
 import org.openide.util.ImageUtilities;
 
 import javax.swing.JButton;
-import javax.swing.JFileChooser;
-import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
 import javax.swing.JPanel;
@@ -28,7 +45,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * A settings step for importing settings
+ * A wizard step panel for importing settings
  *
  * @author Joacim Breiler
  */
@@ -90,15 +107,15 @@ public class WizardPanelImportSettings extends AbstractWizardPanel {
         labelNameValue = new JLabel("");
         labelNameValue.setFont(labelNameValue.getFont().deriveFont(Font.BOLD, 16));
 
-        labelFirmware = new JLabel(Localization.getString("platform.plugin.setupwizard.import-settings.firmware"), JLabel.RIGHT);
+        labelFirmware = new JLabel(Localization.getString("platform.plugin.setupwizard.import-settings.firmware"), SwingConstants.RIGHT);
         labelFirmware.setFont(labelFirmware.getFont().deriveFont(Font.BOLD));
         labelFirmwareValue = new JLabel("");
 
-        labelCreatedBy = new JLabel(Localization.getString("platform.plugin.setupwizard.import-settings.created-by"), JLabel.RIGHT);
+        labelCreatedBy = new JLabel(Localization.getString("platform.plugin.setupwizard.import-settings.created-by"), SwingConstants.RIGHT);
         labelCreatedBy.setFont(labelCreatedBy.getFont().deriveFont(Font.BOLD));
         labelCreatedByValue = new JLabel("");
 
-        labelDate = new JLabel(Localization.getString("platform.plugin.setupwizard.import-settings.created-date"), JLabel.RIGHT);
+        labelDate = new JLabel(Localization.getString("platform.plugin.setupwizard.import-settings.created-date"), SwingConstants.RIGHT);
         labelDate.setFont(labelDate.getFont().deriveFont(Font.BOLD));
         labelDateValue = new JLabel("");
 
@@ -111,11 +128,9 @@ public class WizardPanelImportSettings extends AbstractWizardPanel {
 
         buttonOpen = new JButton(Localization.getString("platform.plugin.setupwizard.import-settings.open-settings"));
         buttonOpen.addActionListener(event -> {
-            JFileChooser fileChooser = FirmwareSettingsFileTypeFilter.getSettingsFileChooser();
-            int returnVal = fileChooser.showOpenDialog(new JFrame());
-            if (returnVal == JFileChooser.APPROVE_OPTION) {
-                loadSettingsFile(fileChooser.getSelectedFile());
-            }
+            FileOpenDialog fileChooser = FirmwareSettingsFileTypeFilter.getSettingsFileChooser();
+            fileChooser.setVisible(true);
+            fileChooser.getSelectedFile().ifPresent(this::loadSettingsFile);
         });
 
         buttonImport = new JButton(Localization.getString("platform.plugin.setupwizard.import-settings.import"));

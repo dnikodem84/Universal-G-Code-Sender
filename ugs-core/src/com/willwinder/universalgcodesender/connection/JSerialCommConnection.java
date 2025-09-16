@@ -21,10 +21,11 @@ package com.willwinder.universalgcodesender.connection;
 import com.fazecast.jSerialComm.SerialPort;
 import com.fazecast.jSerialComm.SerialPortDataListener;
 import org.apache.commons.lang3.StringUtils;
+import org.apache.commons.lang3.SystemUtils;
 
+import java.io.File;
 import java.util.Arrays;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Serial connection using JSerialComm
@@ -33,15 +34,24 @@ import java.util.stream.Collectors;
  */
 public class JSerialCommConnection extends AbstractConnection implements SerialPortDataListener {
 
-    private final byte[] buffer = new byte[1024];
     private SerialPort serialPort;
+
+    public JSerialCommConnection() {
+        // Empty implementation
+    }
+
+    public JSerialCommConnection(SerialPort serialPort) {
+        this.serialPort = serialPort;
+    }
 
     @Override
     public void setUri(String uri) {
         try {
             String portName = StringUtils.substringBetween(uri, ConnectionDriver.JSERIALCOMM.getProtocol(), ":");
-            int baudRate = Integer.valueOf(StringUtils.substringAfterLast(uri, ":"));
+            int baudRate = Integer.parseInt(StringUtils.substringAfterLast(uri, ":"));
             initSerialPort(portName, baudRate);
+        } catch (ConnectionException e) {
+            throw e;
         } catch (Exception e) {
             throw new ConnectionException("Couldn't parse connection string " + uri, e);
         }
@@ -53,6 +63,10 @@ public class JSerialCommConnection extends AbstractConnection implements SerialP
             throw new ConnectionException("The connection wasn't initialized");
         }
 
+        if (serialPort.isOpen()) {
+            throw new ConnectionException("Can not connect, serial port is already open");
+        }
+
         return serialPort.openPort();
     }
 
@@ -62,6 +76,8 @@ public class JSerialCommConnection extends AbstractConnection implements SerialP
         }
 
         serialPort = SerialPort.getCommPort(name);
+        checkPermissions();
+
         serialPort.setParity(SerialPort.NO_PARITY);
         serialPort.setNumStopBits(SerialPort.ONE_STOP_BIT);
         serialPort.setNumDataBits(8);
@@ -69,11 +85,23 @@ public class JSerialCommConnection extends AbstractConnection implements SerialP
         serialPort.setBaudRate(baud);
     }
 
+    private void checkPermissions() {
+        if (!SystemUtils.IS_OS_LINUX) {
+            return;
+        }
+
+        File port = new File(serialPort.getSystemPortPath());
+        if (!port.canWrite() || !port.canRead() ) {
+            throw new ConnectionException("Do not have required permissions to open the device on " + serialPort.getSystemPortPath());
+        }
+    }
+
     @Override
     public void closePort() throws Exception {
         if (serialPort != null) {
             serialPort.removeDataListener();
             serialPort.closePort();
+            serialPort = null;
         }
     }
 
@@ -89,36 +117,39 @@ public class JSerialCommConnection extends AbstractConnection implements SerialP
 
     @Override
     public boolean isOpen() {
-        return serialPort.isOpen();
+        return serialPort != null && serialPort.isOpen();
     }
 
     @Override
-    public List<String> getPortNames() {
+    public List<? extends IConnectionDevice> getDevices() {
         return Arrays.stream(SerialPort.getCommPorts())
-                .map(SerialPort::getSystemPortName)
-                .collect(Collectors.toList());
+                .map(JSerialCommConnectionDevice::new)
+                .toList();
     }
-
 
     @Override
     public int getListeningEvents() {
-        return SerialPort.LISTENING_EVENT_DATA_AVAILABLE;
+        return SerialPort.LISTENING_EVENT_DATA_AVAILABLE | SerialPort.LISTENING_EVENT_PORT_DISCONNECTED;
     }
 
     @Override
     public void serialEvent(com.fazecast.jSerialComm.SerialPortEvent event) {
-        if (event.getEventType() != SerialPort.LISTENING_EVENT_DATA_AVAILABLE) {
-            return;
+        switch (event.getEventType()) {
+            case SerialPort.LISTENING_EVENT_PORT_DISCONNECTED -> {
+                try {
+                    connectionListenerManager.onConnectionClosed();
+                } catch (Exception e) {
+                    // Never mind
+                }
+            }
+            case SerialPort.LISTENING_EVENT_DATA_AVAILABLE -> {
+                byte[] newData = new byte[serialPort.bytesAvailable()];
+                int numRead = serialPort.readBytes(newData, newData.length);
+                getConnectionListenerManager().handleResponse(newData, 0, numRead);
+            }
+            default -> {
+                // Never mind
+            }
         }
-
-        int bytesAvailable = serialPort.bytesAvailable();
-        if (bytesAvailable <= 0) {
-            return;
-        }
-
-        int bytesRead = serialPort.readBytes(buffer, Math.min(buffer.length, bytesAvailable));
-        String response = new String(buffer, 0, bytesRead);
-
-        responseMessageHandler.handleResponse(response);
     }
 }

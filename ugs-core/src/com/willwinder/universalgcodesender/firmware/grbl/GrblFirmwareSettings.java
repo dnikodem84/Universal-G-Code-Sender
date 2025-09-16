@@ -1,5 +1,5 @@
 /*
-    Copyright 2018 Will Winder
+    Copyright 2018-2024 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -24,10 +24,10 @@ import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettings;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettingsListener;
 import com.willwinder.universalgcodesender.i18n.Localization;
-import com.willwinder.universalgcodesender.listeners.CommunicatorListener;
 import com.willwinder.universalgcodesender.model.Axis;
 import com.willwinder.universalgcodesender.model.UnitUtils;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
+import com.willwinder.universalgcodesender.utils.ControllerUtils;
 import org.apache.commons.lang3.math.NumberUtils;
 
 import java.text.DecimalFormat;
@@ -35,19 +35,18 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Handles the firmware settings on a GRBL controller. It needs to be registered as a listener
- * to {@link com.willwinder.universalgcodesender.AbstractCommunicator#setListenAll(CommunicatorListener)}
- * for it to be able to process all commands to/from the controller.
+ * Handles the firmware settings on a GRBL controller.
  *
  * @author Joacim Breiler
  * @author MerrellM
  */
-public class GrblFirmwareSettings implements CommunicatorListener, IFirmwareSettingsListener, IFirmwareSettings {
+public class GrblFirmwareSettings implements IFirmwareSettings {
     private static final Logger LOGGER = Logger.getLogger(GrblFirmwareSettings.class.getName());
 
     /**
@@ -58,6 +57,7 @@ public class GrblFirmwareSettings implements CommunicatorListener, IFirmwareSett
     private static final String KEY_HARD_LIMITS_ENABLED = "$21";
     private static final String KEY_HOMING_ENABLED = "$22";
     private static final String KEY_HOMING_INVERT_DIRECTION = "$23";
+    private static final String KEY_MAX_SPINDLE_SPEED = "$30";
     private static final String KEY_INVERT_DIRECTION = "$3";
     private static final String KEY_INVERT_LIMIT_PINS = "$5";
     private static final String KEY_STEPS_PER_MM_X = "$100";
@@ -76,13 +76,17 @@ public class GrblFirmwareSettings implements CommunicatorListener, IFirmwareSett
     private final Map<String, FirmwareSetting> settings = new ConcurrentHashMap<>();
 
     /**
-     * A delegate for all serial communication handling
+     * All listeners for listening to changed settings
      */
-    private final GrblFirmwareSettingsCommunicatorListener serialCommunicatorDelegate;
+    private final Set<IFirmwareSettingsListener> listeners = ConcurrentHashMap.newKeySet();
+
+    /**
+     * The controller to be used for communication
+     */
+    private final IController controller;
 
     public GrblFirmwareSettings(IController controller) {
-        this.serialCommunicatorDelegate = new GrblFirmwareSettingsCommunicatorListener(controller);
-        this.serialCommunicatorDelegate.addListener(this);
+        this.controller = controller;
     }
 
     /**
@@ -107,9 +111,18 @@ public class GrblFirmwareSettings implements CommunicatorListener, IFirmwareSett
 
         // Make a copy of existing property and send it to our controller
         final FirmwareSetting newSetting = new FirmwareSetting(oldSetting.getKey(), value, oldSetting.getUnits(), oldSetting.getDescription(), oldSetting.getShortDescription());
-        return serialCommunicatorDelegate
-                .updateSettingOnController(newSetting)
-                .orElse(oldSetting);
+        try {
+            GcodeCommand command = controller.createCommand(newSetting.getKey() + "=" + newSetting.getValue());
+            ControllerUtils.sendAndWaitForCompletion(controller, command);
+            if (command.isOk()) {
+                updateFirmwareSetting(newSetting);
+                return newSetting;
+            }
+        } catch (Exception e) {
+            throw new FirmwareSettingsException("Couldn't send update setting command to the controller: " + newSetting.getKey() + "=" + newSetting.getValue() + ".", e);
+        }
+
+        return oldSetting;
     }
 
     /**
@@ -137,12 +150,12 @@ public class GrblFirmwareSettings implements CommunicatorListener, IFirmwareSett
 
     @Override
     public void addListener(IFirmwareSettingsListener listener) {
-        serialCommunicatorDelegate.addListener(listener);
+        listeners.add(listener);
     }
 
     @Override
     public void removeListener(IFirmwareSettingsListener listener) {
-        serialCommunicatorDelegate.removeListener(listener);
+        listeners.remove(listener);
     }
 
     @Override
@@ -223,7 +236,7 @@ public class GrblFirmwareSettings implements CommunicatorListener, IFirmwareSett
     }
 
     @Override
-    public void setStepsPerMillimeter(Axis axis, int stepsPerMillimeter) throws FirmwareSettingsException {
+    public void setStepsPerMillimeter(Axis axis, double stepsPerMillimeter) throws FirmwareSettingsException {
         switch (axis) {
             case X:
                 setValue(KEY_STEPS_PER_MM_X, stepsPerMillimeter);
@@ -240,14 +253,14 @@ public class GrblFirmwareSettings implements CommunicatorListener, IFirmwareSett
     }
 
     @Override
-    public int getStepsPerMillimeter(Axis axis) throws FirmwareSettingsException {
+    public double getStepsPerMillimeter(Axis axis) throws FirmwareSettingsException {
         switch (axis) {
             case X:
-                return getValueAsInteger(KEY_STEPS_PER_MM_X);
+                return getValueAsDouble(KEY_STEPS_PER_MM_X);
             case Y:
-                return getValueAsInteger(KEY_STEPS_PER_MM_Y);
+                return getValueAsDouble(KEY_STEPS_PER_MM_Y);
             case Z:
-                return getValueAsInteger(KEY_STEPS_PER_MM_Z);
+                return getValueAsDouble(KEY_STEPS_PER_MM_Z);
             default:
                 return 0;
         }
@@ -369,6 +382,16 @@ public class GrblFirmwareSettings implements CommunicatorListener, IFirmwareSett
         }
     }
 
+    @Override
+    public int getMaxSpindleSpeed() throws FirmwareSettingsException {
+        return getSetting(KEY_MAX_SPINDLE_SPEED)
+                .map(FirmwareSetting::getValue)
+                .map(value -> value.replaceAll(",", "."))
+                .map(Double::valueOf)
+                .map(Double::intValue)
+                .orElse(0);
+    }
+
     private int getInvertDirectionMask() {
         return getSetting(KEY_INVERT_DIRECTION)
                 .map(FirmwareSetting::getValue)
@@ -384,8 +407,8 @@ public class GrblFirmwareSettings implements CommunicatorListener, IFirmwareSett
     }
 
     @Override
-    public boolean isHomingEnabled() throws FirmwareSettingsException {
-        return getValueAsBoolean(KEY_HOMING_ENABLED);
+    public boolean isHomingEnabled() {
+        return getValueAsBoolean(KEY_HOMING_ENABLED, false);
     }
 
     @Override
@@ -409,36 +432,15 @@ public class GrblFirmwareSettings implements CommunicatorListener, IFirmwareSett
                 .orElse(UnitUtils.Units.UNKNOWN);
     }
 
-    /*
-     * SerialCommunicatorListener
+    /**
+     * Updates a firmware setting
+     *
+     * @param setting the setting
      */
-    @Override
-    public void rawResponseListener(String response) {
-        serialCommunicatorDelegate.rawResponseListener(response);
-    }
-
-    @Override
-    public void commandSent(GcodeCommand command) {
-        serialCommunicatorDelegate.commandSent(command);
-    }
-
-    @Override
-    public void commandSkipped(GcodeCommand command) {
-        serialCommunicatorDelegate.commandSkipped(command);
-    }
-
-    @Override
-    public void communicatorPausedOnError() {
-        serialCommunicatorDelegate.communicatorPausedOnError();
-    }
-
-    /*
-     * IFirmwareSettingsListener
-     */
-    @Override
-    public void onUpdatedFirmwareSetting(FirmwareSetting setting) {
+    public void updateFirmwareSetting(FirmwareSetting setting) {
         LOGGER.log(Level.FINE, "Updating setting " + setting.getKey() + " = " + setting.getValue());
         settings.put(setting.getKey(), setting);
+        listeners.forEach(listener -> listener.onUpdatedFirmwareSetting(setting));
     }
 
     /*
@@ -465,5 +467,9 @@ public class GrblFirmwareSettings implements CommunicatorListener, IFirmwareSett
     private boolean getValueAsBoolean(String key) throws FirmwareSettingsException {
         FirmwareSetting firmwareSetting = getSetting(key).orElseThrow(() -> new FirmwareSettingsException("Couldn't find setting with key: " + key));
         return "1".equalsIgnoreCase(firmwareSetting.getValue());
+    }
+
+    private boolean getValueAsBoolean(String key, boolean defaultValue) {
+        return getSetting(key).map(FirmwareSetting::getValue).map("1"::equalsIgnoreCase).orElse(defaultValue);
     }
 }

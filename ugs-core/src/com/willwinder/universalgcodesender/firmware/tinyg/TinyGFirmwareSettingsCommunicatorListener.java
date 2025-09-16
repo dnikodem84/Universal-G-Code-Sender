@@ -24,10 +24,9 @@ import com.willwinder.universalgcodesender.TinyGUtils;
 import com.willwinder.universalgcodesender.firmware.FirmwareSetting;
 import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettingsListener;
-import com.willwinder.universalgcodesender.firmware.grbl.GrblFirmwareSettingsCommunicatorListener;
-import com.willwinder.universalgcodesender.listeners.CommunicatorListener;
+import com.willwinder.universalgcodesender.communicator.ICommunicatorListener;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
-import com.willwinder.universalgcodesender.types.TinyGGcodeCommand;
+import com.willwinder.universalgcodesender.firmware.tinyg.commands.TinyGGcodeCommand;
 import com.willwinder.universalgcodesender.utils.ThreadHelper;
 
 import java.util.Collections;
@@ -44,7 +43,7 @@ import java.util.concurrent.TimeoutException;
  *
  * @author Joacim Breiler
  */
-public class TinyGFirmwareSettingsCommunicatorListener implements CommunicatorListener {
+public class TinyGFirmwareSettingsCommunicatorListener implements ICommunicatorListener {
 
     /**
      * Number of seconds to wait until the controller has persisted the setting
@@ -152,6 +151,11 @@ public class TinyGFirmwareSettingsCommunicatorListener implements CommunicatorLi
         // Not used
     }
 
+    @Override
+    public void onConnectionClosed() {
+
+    }
+
     /**
      * Returns if the controller is ready to receive setting commands.
      *
@@ -213,7 +217,7 @@ public class TinyGFirmwareSettingsCommunicatorListener implements CommunicatorLi
 
     /**
      * Block and wait until the setting has been updated or until a timeout has occured.
-     * The timeout will wait {@link GrblFirmwareSettingsCommunicatorListener#UPDATE_TIMEOUT_SECONDS}.
+     * The timeout will wait {@link com.willwinder.universalgcodesender.firmware.tinyg.TinyGFirmwareSettingsCommunicatorListener#UPDATE_TIMEOUT_SECONDS}.
      *
      * @throws FirmwareSettingsException if a timeout has occured.
      */

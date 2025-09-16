@@ -1,5 +1,5 @@
 /*
-    Copywrite 2016 Will Winder
+    Copyright 2016 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -58,7 +58,7 @@ public class GrblLookups {
                   lookups.put(record.get(0), list.toArray(new String[0]));
                 }
             }
-        } catch (IOException ex) {
+        } catch (Exception ex) {
             System.out.println("Unable to load GRBL resources.");
             ex.printStackTrace();
         }

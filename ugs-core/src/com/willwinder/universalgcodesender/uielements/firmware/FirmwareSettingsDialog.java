@@ -25,13 +25,14 @@ import com.willwinder.universalgcodesender.firmware.IFirmwareSettings;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettingsListener;
 import com.willwinder.universalgcodesender.i18n.Localization;
 import com.willwinder.universalgcodesender.model.BackendAPI;
+import com.willwinder.universalgcodesender.uielements.FileOpenDialog;
+import com.willwinder.universalgcodesender.uielements.FileSaveDialog;
 import com.willwinder.universalgcodesender.uielements.components.FirmwareSettingsFileTypeFilter;
-import com.willwinder.universalgcodesender.utils.StringNumberComparator;
+import com.willwinder.universalgcodesender.utils.SettingsComparator;
 
 import javax.swing.GroupLayout;
 import javax.swing.JButton;
 import javax.swing.JDialog;
-import javax.swing.JFileChooser;
 import javax.swing.JScrollPane;
 import javax.swing.JTable;
 import javax.swing.table.TableColumnModel;
@@ -57,9 +58,9 @@ public class FirmwareSettingsDialog extends JDialog implements IFirmwareSettings
     private static final int COL_INDEX_SETTING = 0;
     private static final Logger logger = Logger.getLogger(FirmwareSettingsDialog.class.getName());
 
-    private final IFirmwareSettings firmwareSettingsManager;
+    private final transient IFirmwareSettings firmwareSettingsManager;
     private final FirmwareSettingsTableModel firmwareSettingsTableModel;
-    private final BackendAPI backend;
+    private final transient BackendAPI backend;
 
     private JButton closeButton;
     private JButton saveButton;
@@ -125,15 +126,15 @@ public class FirmwareSettingsDialog extends JDialog implements IFirmwareSettings
         settingsTable.setModel(firmwareSettingsTableModel);
 
         TableRowSorter<TableModel> sorter = new TableRowSorter<>(settingsTable.getModel());
-        sorter.setComparator(COL_INDEX_SETTING, new StringNumberComparator());
+        sorter.setComparator(COL_INDEX_SETTING, new SettingsComparator());
         sorter.toggleSortOrder(COL_INDEX_SETTING);
         settingsTable.setRowSorter(sorter);
 
         JScrollPane settingsTableScrollPane = new JScrollPane();
         settingsTableScrollPane.setViewportView(settingsTable);
         settingsTable.getTableHeader().setReorderingAllowed(false);
-        settingsTable.getColumnModel().getColumn(0).setMinWidth(60);
-        settingsTable.getColumnModel().getColumn(0).setMaxWidth(80);
+        settingsTable.getColumnModel().getColumn(0).setMinWidth(200);
+        settingsTable.getColumnModel().getColumn(0).setMaxWidth(500);
         settingsTable.getColumnModel().getColumn(2).setPreferredWidth(85);
 
         GroupLayout layout = new GroupLayout(getContentPane());
@@ -169,22 +170,20 @@ public class FirmwareSettingsDialog extends JDialog implements IFirmwareSettings
     }
 
     private void importButtonActionPerformed() {
-        JFileChooser fileChooser = new JFileChooser();
-        fileChooser.setFileFilter(new FirmwareSettingsFileTypeFilter());
-        if (fileChooser.showOpenDialog(this) == JFileChooser.APPROVE_OPTION) {
-            FirmwareSettingUtils.importSettings(fileChooser.getSelectedFile(), backend.getController().getFirmwareSettings());
-        }
+        FileOpenDialog fileChooser = FirmwareSettingsFileTypeFilter.getSettingsFileChooser();
+        fileChooser.setVisible(true);
+        fileChooser.getSelectedFile().ifPresent(file -> FirmwareSettingUtils.importSettings(file, backend.getController().getFirmwareSettings()));
     }
 
     private void exportButtonActionPerformed() {
-        JFileChooser fileChooser = new JFileChooser();
+        FileSaveDialog fileSaveDialog = new FileSaveDialog();
+        fileSaveDialog.setFileFilter(new FirmwareSettingsFileTypeFilter());
+
         String date = LocalDate.now().format(DateTimeFormatter.ISO_DATE);
-        fileChooser.setSelectedFile(new File("firmware_" + date + ".settings"));
-        fileChooser.setFileFilter(new FirmwareSettingsFileTypeFilter());
-        if (fileChooser.showSaveDialog(this) == JFileChooser.APPROVE_OPTION) {
-            File file = fileChooser.getSelectedFile();
-            FirmwareSettingUtils.exportSettings(file, backend.getController());
-        }
+        fileSaveDialog.setSelectedFile(new File("firmware_" + date + ".settings"));
+        fileSaveDialog.setVisible(true);
+
+        fileSaveDialog.getSelectedFile().ifPresent(file -> FirmwareSettingUtils.exportSettings(file, backend.getController()));
     }
 
     private void closeButtonActionPerformed() {

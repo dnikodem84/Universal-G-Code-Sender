@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2019 Will Winder
+    Copyright 2016-2020 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -26,6 +26,8 @@ import com.willwinder.universalgcodesender.model.UnitUtils.Units;
  * @author wwinder
  */
 public class GcodeUtils {
+    public static final String GCODE_RETURN_TO_XY_ZERO_LOCATION = "G90 G0 X0 Y0";
+    public static final String GCODE_RETURN_TO_Z_ZERO_LOCATION = "G90 G0 Z0";
 
     /**
      * Generates a gcode command for switching units.
@@ -47,64 +49,24 @@ public class GcodeUtils {
 
     /**
      * Generates a move command given a base command. The command will be appended with the relative movement to be made
-     * on the axises with the given distance and feed rate.
+     * on the axises with the given feed rate.
      *
-     * @param command  the base command to use, ie: G91G1 or G1
-     * @param distance the distance to move in the currently selected unit (G20 or G21)
-     * @param dirX     1 for positive movement, 0 for no movement, -1 for negative movement
-     * @param dirY     1 for positive movement, 0 for no movement, -1 for negative movement
-     * @param dirZ     1 for positive movement, 0 for no movement, -1 for negative movement
-     * @param units    the units to use for movement
+     * @param command   the base command to use, ie: G91G1 or G1
+     * @param feedRate the maximum feed rate
+     * @param p partial position of movement
      */
-    public static String generateMoveCommand(String command, double distance, double feedRate, int dirX, int dirY, int dirZ, Units units) {
-        return GcodeUtils.unitCommand(units) + generateMoveCommand(command, distance, feedRate, dirX, dirY, dirZ);
-    }
-
-    /**
-     * Generates a move command given a base command. The command will be appended with the relative movement to be made
-     * on the axises with the given distance and feed rate.
-     *
-     * @param command  the base command to use, ie: G91G1 or G1
-     * @param distance the distance to move in the currently selected unit (G20 or G21)
-     * @param dirX     1 for positive movement, 0 for no movement, -1 for negative movement
-     * @param dirY     1 for positive movement, 0 for no movement, -1 for negative movement
-     * @param dirZ     1 for positive movement, 0 for no movement, -1 for negative movement
-     */
-    public static String generateMoveCommand(String command, double distance, double feedRate, int dirX, int dirY, int dirZ) {
+    public static String generateMoveCommand(String command, double feedRate, PartialPosition p) {
         StringBuilder sb = new StringBuilder();
 
-        // Scale the feed rate and distance to the current coordinate units
-        String convertedDistance = Utils.formatter.format(distance);
-        String convertedFeedRate = Utils.formatter.format(feedRate);
-
+        sb.append(GcodeUtils.unitCommand(p.getUnits()));
         sb.append(command);
+        sb.append(p.getFormattedGCode(Utils.formatter));
 
-        if (dirX != 0) {
-            sb.append("X");
-            if (dirX < 0) {
-                sb.append("-");
+        if (feedRate > 0) {
+            String convertedFeedRate = Utils.formatter.format(feedRate);
+            if (convertedFeedRate != null) {
+                sb.append("F").append(convertedFeedRate);
             }
-            sb.append(convertedDistance);
-        }
-
-        if (dirY != 0) {
-            sb.append("Y");
-            if (dirY < 0) {
-                sb.append("-");
-            }
-            sb.append(convertedDistance);
-        }
-
-        if (dirZ != 0) {
-            sb.append("Z");
-            if (dirZ < 0) {
-                sb.append("-");
-            }
-            sb.append(convertedDistance);
-        }
-
-        if (convertedFeedRate != null) {
-            sb.append("F").append(convertedFeedRate);
         }
 
         return sb.toString();
@@ -113,10 +75,9 @@ public class GcodeUtils {
     /**
      * Generate a command to move to a specific coordinate
      *
-     *
      * @param command  the base command to use, ie: G91G1 or G1
      * @param position the position to move to
-     * @param feedRate the feed rate to use using the position units / minute
+     * @param feedRate the feed rate to use, using the position units / minute
      * @return a command string
      */
     public static String generateMoveToCommand(String command, PartialPosition position, double feedRate) {

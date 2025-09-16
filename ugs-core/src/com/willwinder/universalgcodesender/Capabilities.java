@@ -18,8 +18,10 @@
  */
 package com.willwinder.universalgcodesender;
 
-import java.util.HashSet;
+import com.willwinder.universalgcodesender.model.Axis;
+
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Stores all capabilities supported by the implementation of the {@link IController}.
@@ -28,11 +30,22 @@ import java.util.Set;
  * @author Joacim Breiler
  */
 public class Capabilities {
-
     /**
      * The capabilities available for the current hardware
      */
-    private Set<String> capabilities = new HashSet<>();
+    private final Set<String> capabilities = ConcurrentHashMap.newKeySet();
+
+    /**
+     * Merge capabilities from another Capabilities object into a new one.
+     *
+     * @param other the capabilities to merge.
+     */
+    public Capabilities merge(Capabilities other) {
+        Capabilities result = new Capabilities();
+        result.capabilities.addAll(other.capabilities);
+        result.capabilities.addAll(capabilities);
+        return result;
+    }
 
     /**
      * Adds a capability that is either defined in {@link CapabilitiesConstants} or a
@@ -61,7 +74,6 @@ public class Capabilities {
      * @param capability the capability as a string that we want to check. You may define
      *                   your own values, the generic capabilities are defined in
      *                   {@link CapabilitiesConstants}
-     *
      * @return returns true if the capability is available
      */
     public boolean hasCapability(String capability) {
@@ -157,5 +169,46 @@ public class Capabilities {
      */
     public boolean hasFirmwareSettings() {
         return hasCapability(CapabilitiesConstants.FIRMWARE_SETTINGS);
+    }
+
+    /**
+     * Returns if the hardware has support for returning to zero. The capability
+     * is defined in by the capability {@link CapabilitiesConstants#RETURN_TO_ZERO}
+     *
+     * @return true if return to zero function is available in the hardware
+     */
+    public boolean hasReturnToZero() {
+        return hasCapability(CapabilitiesConstants.RETURN_TO_ZERO);
+    }
+
+    /**
+     * Returns if the controller has support for the given axis
+     *
+     * @param axis - the axis to check support for
+     * @return true if the axis is supported
+     */
+    public boolean hasAxis(Axis axis) {
+        return switch (axis) {
+            case X -> hasCapability(CapabilitiesConstants.X_AXIS);
+            case Y -> hasCapability(CapabilitiesConstants.Y_AXIS);
+            case Z -> hasCapability(CapabilitiesConstants.Z_AXIS);
+            case A -> hasCapability(CapabilitiesConstants.A_AXIS);
+            case B -> hasCapability(CapabilitiesConstants.B_AXIS);
+            case C -> hasCapability(CapabilitiesConstants.C_AXIS);
+        };
+    }
+
+    /**
+     * Returns if the hardware has the capabilities for opening the door
+     *
+     * @return true if open door function is available in the hardware
+     */
+    public boolean hasOpenDoor() {
+        return hasCapability(CapabilitiesConstants.OPEN_DOOR);
+    }
+
+    @Override
+    public String toString() {
+        return String.join(", ", capabilities);
     }
 }

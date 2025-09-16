@@ -1,5 +1,5 @@
 /*
-    Copyright 2019 Will Winder
+    Copyright 2019-2023 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -19,10 +19,7 @@
 package com.willwinder.universalgcodesender.utils;
 
 import com.willwinder.universalgcodesender.types.GcodeCommand;
-import org.apache.commons.io.IOUtils;
 
-import java.io.IOException;
-import java.io.StringReader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -67,7 +64,7 @@ public class SimpleGcodeStreamReader implements IGcodeStreamReader {
 
     @Override
     public boolean ready() {
-        return true;
+        return currentLine <= commands.size();
     }
 
     @Override
@@ -82,7 +79,7 @@ public class SimpleGcodeStreamReader implements IGcodeStreamReader {
 
     @Override
     public GcodeCommand getNextCommand() {
-        if (currentLine > commands.size()) {
+        if (currentLine >= commands.size()) {
             return null;
         }
 

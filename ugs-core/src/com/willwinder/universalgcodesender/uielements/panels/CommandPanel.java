@@ -24,6 +24,8 @@ import com.willwinder.universalgcodesender.listeners.MessageType;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
+import com.willwinder.universalgcodesender.model.events.SettingChangedEvent;
 import com.willwinder.universalgcodesender.uielements.components.CommandTextArea;
 import com.willwinder.universalgcodesender.uielements.components.LengthLimitedDocument;
 import com.willwinder.universalgcodesender.utils.SwingHelpers;
@@ -31,6 +33,7 @@ import net.miginfocom.swing.MigLayout;
 
 import javax.swing.JCheckBoxMenuItem;
 import javax.swing.JLabel;
+import javax.swing.JMenuItem;
 import javax.swing.JPanel;
 import javax.swing.JPopupMenu;
 import javax.swing.JScrollPane;
@@ -58,6 +61,8 @@ public class CommandPanel extends JPanel implements UGSEventListener, MessageLis
             Localization.getString("mainWindow.swing.showVerboseOutputCheckBox"));
     private final JCheckBoxMenuItem scrollWindowMenuItem = new JCheckBoxMenuItem(
             Localization.getString("mainWindow.swing.scrollWindowCheckBox"));
+    private final JMenuItem clearMenuItem = new JMenuItem(
+            Localization.getString("mainWindow.swing.clearOutput"));
 
 
     /**
@@ -93,24 +98,27 @@ public class CommandPanel extends JPanel implements UGSEventListener, MessageLis
         commandLabel.setEnabled(backend.isIdle());
 
         scrollWindowMenuItem.addActionListener(e -> checkScrollWindow());
+        clearMenuItem.addActionListener(e -> clear());
 
         setLayout(new MigLayout("inset 0 0 5 0, fill, wrap 1", "", "[][min!]"));
         add(scrollPane, "grow, growy");
         add(commandLabel, "gapleft 5, al left, split 2");
         add(commandTextField, "gapright 5, r, grow");
 
+        showVerboseMenuItem.addChangeListener((e) ->backend.getSettings().setVerboseOutputEnabled(showVerboseMenuItem.isSelected()));
         menu.add(showVerboseMenuItem);
+
+        scrollWindowMenuItem.addChangeListener((e) -> backend.getSettings().setScrollWindowEnabled(scrollWindowMenuItem.isSelected()));
         menu.add(scrollWindowMenuItem);
+        menu.add(clearMenuItem);
         SwingHelpers.traverse(this, (comp) -> comp.setComponentPopupMenu(menu));
     }
 
     @Override
     public void UGSEvent(UGSEvent evt) {
-        if (evt.isSettingChangeEvent()) {
+        if (evt instanceof SettingChangedEvent) {
             loadSettings();
-        }
-
-        if (evt.isStateChangeEvent()) {
+        } else if (evt instanceof ControllerStateEvent) {
             commandLabel.setEnabled(backend.isIdle());
         }
     }
@@ -152,6 +160,10 @@ public class CommandPanel extends JPanel implements UGSEventListener, MessageLis
         }
     }
 
+    private void clear() {
+        consoleTextArea.setText("");
+    }
+
     public void loadSettings() {
         scrollWindowMenuItem.setSelected(backend.getSettings().isScrollWindowEnabled());
         showVerboseMenuItem.setSelected(backend.getSettings().isVerboseOutputEnabled());
@@ -161,5 +173,10 @@ public class CommandPanel extends JPanel implements UGSEventListener, MessageLis
     public void saveSettings() {
         backend.getSettings().setScrollWindowEnabled(scrollWindowMenuItem.isSelected());
         backend.getSettings().setVerboseOutputEnabled(showVerboseMenuItem.isSelected());
+    }
+
+    @Override
+    public void requestFocus() {
+        commandTextField.requestFocus();
     }
 }

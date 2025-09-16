@@ -23,7 +23,7 @@ import com.willwinder.universalgcodesender.firmware.FirmwareSetting;
 import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettings;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettingsListener;
-import com.willwinder.universalgcodesender.listeners.CommunicatorListener;
+import com.willwinder.universalgcodesender.communicator.ICommunicatorListener;
 import com.willwinder.universalgcodesender.model.Axis;
 import com.willwinder.universalgcodesender.model.UnitUtils;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
@@ -41,7 +41,7 @@ import java.util.logging.Logger;
  *
  * @author Joacim Breiler
  */
-public class TinyGFirmwareSettings implements CommunicatorListener, IFirmwareSettings, IFirmwareSettingsListener {
+public class TinyGFirmwareSettings implements ICommunicatorListener, IFirmwareSettings, IFirmwareSettingsListener {
     private static final Logger LOGGER = Logger.getLogger(TinyGFirmwareSettings.class.getName());
 
     private final Map<String, FirmwareSetting> settings = new ConcurrentHashMap<>();
@@ -136,12 +136,12 @@ public class TinyGFirmwareSettings implements CommunicatorListener, IFirmwareSet
     }
 
     @Override
-    public void setStepsPerMillimeter(Axis axis, int stepsPerMillimeter) throws FirmwareSettingsException {
+    public void setStepsPerMillimeter(Axis axis, double stepsPerMillimeter) throws FirmwareSettingsException {
 
     }
 
     @Override
-    public int getStepsPerMillimeter(Axis axis) throws FirmwareSettingsException {
+    public double getStepsPerMillimeter(Axis axis) throws FirmwareSettingsException {
         return 0;
     }
 
@@ -191,6 +191,11 @@ public class TinyGFirmwareSettings implements CommunicatorListener, IFirmwareSet
         return 0;
     }
 
+    @Override
+    public int getMaxSpindleSpeed() throws FirmwareSettingsException {
+        throw new FirmwareSettingsException("Not implemented");
+    }
+
     /*
      * IFirmwareSettingsListener
      */
@@ -223,4 +228,8 @@ public class TinyGFirmwareSettings implements CommunicatorListener, IFirmwareSet
         serialCommunicatorDelegate.communicatorPausedOnError();
     }
 
+    @Override
+    public void onConnectionClosed() {
+
+    }
 }

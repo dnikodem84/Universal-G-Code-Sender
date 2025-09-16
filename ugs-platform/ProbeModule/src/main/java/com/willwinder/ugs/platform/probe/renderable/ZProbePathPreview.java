@@ -1,5 +1,5 @@
 /*
-    Copyright 2017 Will Winder
+    Copyright 2017-2023 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -21,28 +21,38 @@ package com.willwinder.ugs.platform.probe.renderable;
 import com.jogamp.opengl.GL2;
 import com.jogamp.opengl.GLAutoDrawable;
 import com.jogamp.opengl.util.gl2.GLUT;
-import com.willwinder.ugs.nbm.visualizer.options.VisualizerOptions;
-import com.willwinder.ugs.nbm.visualizer.shared.Renderable;
-import javax.vecmath.Point3d;
+import com.willwinder.ugs.platform.probe.ProbeParameters;
+import com.willwinder.ugs.platform.probe.ProbeSettings;
+import com.willwinder.universalgcodesender.i18n.Localization;
+import com.willwinder.universalgcodesender.model.Position;
+import com.willwinder.universalgcodesender.model.UnitUtils;
 
 /**
  *
  * @author wwinder
  */
-public class ZProbePathPreview extends Renderable {
+public class ZProbePathPreview extends AbstractProbePreview {
     private Double probeDepth = null;
     private Double probeOffset = null;
-    private Point3d start = null;
+    private Position start = null;
 
     private final GLUT glut;
 
-    public ZProbePathPreview(String title) {
-        super(10, title);
+    public ZProbePathPreview() {
+        super(10, Localization.getString("probe.visualizer.z-preview"));
         glut = new GLUT();
     }
 
-    public void setStart(Point3d p) {
-        this.start = p;
+    @Override
+    public void setContext(ProbeParameters pc, Position startWork) {
+        this.start = startWork;
+    }
+
+    @Override
+    public void updateSettings() {
+        UnitUtils.Units settingsUnits = ProbeSettings.getSettingsUnits();
+        double scaleFactor = UnitUtils.scaleUnits(settingsUnits, UnitUtils.Units.MM);
+        updateSpacing(ProbeSettings.getzDistance() * scaleFactor, ProbeSettings.getzOffset() * scaleFactor);
     }
 
     public void updateSpacing(double depth, double offset) {
@@ -65,11 +75,7 @@ public class ZProbePathPreview extends Renderable {
     }
 
     @Override
-    public void reloadPreferences(VisualizerOptions vo) {
-    }
-
-    @Override
-    public void draw(GLAutoDrawable drawable, boolean idle, Point3d machineCoord, Point3d workCoord, Point3d objectMin, Point3d objectMax, double scaleFactor, Point3d mouseWorldCoordinates, Point3d rotation) {
+    public void draw(GLAutoDrawable drawable, boolean idle, Position machineCoord, Position workCoord, Position objectMin, Position objectMax, double scaleFactor, Position mouseWorldCoordinates, Position rotation) {
         if (this.probeDepth == null || this.probeOffset == null) return;
         final int slices = 10;
         final int stacks = 10;
@@ -79,7 +85,7 @@ public class ZProbePathPreview extends Renderable {
 
         GL2 gl = drawable.getGL().getGL2();
 
-        if (this.start != null) {
+        if (this.start != null && isProbeCycleActive()) {
             gl.glTranslated(start.x, start.y, start.z);
         } else {
             gl.glTranslated(workCoord.x, workCoord.y, workCoord.z);

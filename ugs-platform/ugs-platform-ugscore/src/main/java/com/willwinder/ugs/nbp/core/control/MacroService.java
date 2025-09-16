@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2019 Will Winder
+    Copyright 2016-2023 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -22,31 +22,24 @@ import com.google.common.base.Strings;
 import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.ugs.nbp.lib.services.ActionRegistrationService;
 import com.willwinder.ugs.nbp.lib.services.LocalizingService;
-import com.willwinder.universalgcodesender.MacroHelper;
 import com.willwinder.universalgcodesender.i18n.Localization;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.types.Macro;
-import com.willwinder.universalgcodesender.utils.GUIHelpers;
 import com.willwinder.universalgcodesender.utils.Settings;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
-import org.openide.util.Exceptions;
 import org.openide.util.Lookup;
 import org.openide.util.lookup.ServiceProvider;
 
-import javax.swing.AbstractAction;
-import java.awt.EventQueue;
-import java.awt.event.ActionEvent;
 import java.io.IOException;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- *
  * @author wwinder
  */
-@ServiceProvider(service=MacroService.class) 
+@ServiceProvider(service = MacroService.class)
 public final class MacroService {
     private static final Logger logger = Logger.getLogger(MacroService.class.getName());
 
@@ -71,57 +64,26 @@ public final class MacroService {
             String actionPath = "/Actions/" + actionCategory;
             FileUtil.createFolder(root, actionPath).delete();
 
-            ActionRegistrationService ars =  Lookup.getDefault().lookup(ActionRegistrationService.class);
+            ActionRegistrationService ars = Lookup.getDefault().lookup(ActionRegistrationService.class);
             BackendAPI backend = CentralLookup.getDefault().lookup(BackendAPI.class);
             Settings settings = backend.getSettings();
 
             List<Macro> macros = settings.getMacros();
             macros.forEach(macro -> {
-                int index = macros.indexOf(macro);
                 try {
-                    String text;
-                    if (Strings.isNullOrEmpty(macro.getNameAndDescription())){
+                    int index = macros.indexOf(macro);
+                    String text = macro.getName();
+                    if (Strings.isNullOrEmpty(text)) {
                         text = Integer.toString(index + 1);
-                    } else {
-                        text = macro.getNameAndDescription();
                     }
 
-                    ars.registerAction(MacroAction.class.getCanonicalName() + "." + macro.getName(), text, actionCategory, null, menuPath, index, localized, new MacroAction(backend, macro));
+                    ars.registerAction(MacroAction.class.getCanonicalName() + "." + macro.getUuid(), text, actionCategory, null, menuPath, index, localized, new MacroAction(macro));
                 } catch (IOException e) {
-                    logger.log(Level.WARNING, "Couldn't register macro action: \"" + macro.getName() + "\"", e);
+                    logger.log(Level.WARNING, String.format("Couldn't register macro action: \"%s\"", macro.getName()), e);
                 }
             });
         } catch (Exception e) {
-            logger.log(Level.WARNING, "Couldn't register macro actions", e);
-        }
-    }
-
-    protected class MacroAction extends AbstractAction {
-        private BackendAPI backend;
-        private Macro macro;
-
-        public MacroAction(BackendAPI b, Macro macro) {
-            backend = b;
-            this.macro = macro;
-        }
-
-        @Override
-        public void actionPerformed(ActionEvent e) {
-            if (macro != null && macro.getGcode() != null) {
-                EventQueue.invokeLater(() -> {
-                    try {
-                        MacroHelper.executeCustomGcode(macro.getGcode(), backend);
-                    } catch (Exception ex) {
-                        GUIHelpers.displayErrorDialog(ex.getMessage());
-                        Exceptions.printStackTrace(ex);
-                    }
-                });
-            }
-        }
-
-        @Override
-        public boolean isEnabled() {
-            return backend.isConnected() && backend.isIdle();
+            logger.log(Level.WARNING, "Could not register macro actions", e);
         }
     }
 }

@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2019 Will Winder
+    Copyright 2016-2024 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -20,13 +20,14 @@ package com.willwinder.universalgcodesender.listeners;
 
 import com.willwinder.universalgcodesender.model.Position;
 import com.willwinder.universalgcodesender.model.UnitUtils;
+import org.apache.commons.lang3.builder.EqualsBuilder;
+import org.apache.commons.lang3.builder.HashCodeBuilder;
 
 /**
- *
  * @author wwinder
  */
 public class ControllerStatus {
-    private final String stateString;
+    public static final ControllerStatus EMPTY_CONTROLLER_STATUS = ControllerStatusBuilder.newInstance().build();
     private final Position machineCoord;
     private final Position workCoord;
     private final Position workCoordinateOffset;
@@ -37,29 +38,29 @@ public class ControllerStatus {
     private final AccessoryStates accessoryStates;
     private final ControllerState state;
     private final UnitUtils.Units feedSpeedUnits;
+    private final String subState;
 
     /**
      * Baseline constructor. This data should always be present. Represents the
      * controller status.
-     * 
-     * @param stateString controller state, i.e. idle/hold/running
-     * @param state controller state, i.e. {@link ControllerState#IDLE}/{@link ControllerState#HOLD}/{@link ControllerState#RUN}
+     *
+     * @param state        controller state, i.e. {@link ControllerState#IDLE}/{@link ControllerState#HOLD}/{@link ControllerState#RUN}
      * @param machineCoord controller machine coordinates
-     * @param workCoord controller work coordinates
+     * @param workCoord    controller work coordinates
      */
-    public ControllerStatus(String stateString, ControllerState state, Position machineCoord, Position workCoord) {
-        this(stateString, state, machineCoord, workCoord, 0d, UnitUtils.Units.MM, 0d, null, null, null, null);
+    public ControllerStatus(ControllerState state, Position machineCoord, Position workCoord) {
+        this(state, "", machineCoord, workCoord, 0d, UnitUtils.Units.MM, 0d, null, null, null, null);
     }
 
     /**
      * Additional parameters
      */
-    public ControllerStatus(String stateString, ControllerState state, Position machineCoord,
+    public ControllerStatus(ControllerState state, String subState, Position machineCoord,
                             Position workCoord, Double feedSpeed, UnitUtils.Units feedSpeedUnits, Double spindleSpeed,
                             OverridePercents overrides, Position workCoordinateOffset,
                             EnabledPins pins, AccessoryStates states) {
-        this.stateString = stateString;
         this.state = state;
+        this.subState = subState;
         this.machineCoord = machineCoord;
         this.workCoord = workCoord;
         this.workCoordinateOffset = workCoordinateOffset;
@@ -69,16 +70,6 @@ public class ControllerStatus {
         this.overrides = overrides;
         this.pins = pins;
         this.accessoryStates = states;
-    }
-
-    /**
-     * Returns the controller state as a string.
-     *
-     * @deprecated because different controllers have different state strings it's unsafe to build logic using these strings. Use {@link ControllerStatus#getState()} instead.
-     * @return the state as a string
-     */
-    public String getStateString() {
-        return stateString;
     }
 
     public ControllerState getState() {
@@ -121,52 +112,18 @@ public class ControllerStatus {
         return feedSpeedUnits;
     }
 
-    public static class EnabledPins {
-        final public boolean X;
-        final public boolean Y;
-        final public boolean Z;
-        final public boolean Probe;
-        final public boolean Door;
-        final public boolean Hold;
-        final public boolean SoftReset;
-        final public boolean CycleStart;
-
-        public EnabledPins(String enabled) {
-            String enabledUpper = enabled.toUpperCase();
-            X = enabledUpper.contains("X");
-            Y = enabledUpper.contains("Y");
-            Z = enabledUpper.contains("Z");
-            Probe = enabledUpper.contains("P");
-            Door = enabledUpper.contains("D");
-            Hold = enabledUpper.contains("H");
-            SoftReset = enabledUpper.contains("R");
-            CycleStart = enabledUpper.contains("S");
-        }
+    @Override
+    public boolean equals(Object o) {
+        return EqualsBuilder.reflectionEquals(this, o);
     }
 
-    public static class AccessoryStates {
-        final public boolean SpindleCW;
-        final public boolean SpindleCCW;
-        final public boolean Flood;
-        final public boolean Mist;
-
-        public AccessoryStates(String enabled) {
-            String enabledUpper = enabled.toUpperCase();
-            SpindleCW = enabledUpper.contains("S");
-            SpindleCCW = enabledUpper.contains("C");
-            Flood = enabledUpper.contains("F");
-            Mist = enabledUpper.contains("M");
-        }
+    @Override
+    public int hashCode() {
+        return HashCodeBuilder.reflectionHashCode(this);
     }
 
-    public static class OverridePercents {
-        final public int feed;
-        final public int rapid;
-        final public int spindle;
-        public OverridePercents(int feed, int rapid, int spindle) {
-            this.feed = feed;
-            this.rapid = rapid;
-            this.spindle = spindle;
-        }
+    public String getSubState() {
+        return subState;
     }
+
 }

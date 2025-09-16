@@ -1,10 +1,5 @@
-/**
- * Expand an arc into smaller sections. You can configure the length of each
- * section, and whether it is expanded with a bunch of smaller arcs, or with
- * line segments.
- */
 /*
-    Copyright 2016-2017 Will Winder
+    Copyright 2016-2020 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -24,7 +19,6 @@
 package com.willwinder.universalgcodesender.gcode.processors;
 
 import com.google.common.collect.Iterables;
-import com.willwinder.universalgcodesender.gcode.GcodeParser;
 import com.willwinder.universalgcodesender.gcode.GcodeParser.GcodeMeta;
 import com.willwinder.universalgcodesender.gcode.GcodePreprocessorUtils;
 import com.willwinder.universalgcodesender.gcode.GcodePreprocessorUtils.SplitCommand;
@@ -32,6 +26,7 @@ import com.willwinder.universalgcodesender.gcode.GcodeState;
 import com.willwinder.universalgcodesender.gcode.util.Code;
 import static com.willwinder.universalgcodesender.gcode.util.Code.G1;
 import com.willwinder.universalgcodesender.gcode.util.GcodeParserException;
+import com.willwinder.universalgcodesender.gcode.util.GcodeParserUtils;
 import com.willwinder.universalgcodesender.gcode.util.PlaneFormatter;
 import com.willwinder.universalgcodesender.i18n.Localization;
 import com.willwinder.universalgcodesender.model.Position;
@@ -42,13 +37,16 @@ import java.util.Collections;
 import java.util.List;
 
 /**
+ * Expand an arc into smaller sections. You can configure the length of each
+ * section, and whether it is expanded with a bunch of smaller arcs, or with
+ * line segments.
  *
  * @author wwinder
  */
 public class ArcExpander implements CommandProcessor {
-    final private boolean convertToLines;
-    final private double length;
-    final private DecimalFormat df;
+    private final boolean convertToLines;
+    private final double length;
+    private final DecimalFormat df;
 
     @Override
     public String getHelp() {
@@ -69,13 +67,23 @@ public class ArcExpander implements CommandProcessor {
         df = new DecimalFormat("#.#########", Localization.dfs);
     }
 
+    /**
+     * @param convertToLines toggles if smaller lines or arcs are returned.
+     * @param length the length of each smaller segment.
+     */
+    public ArcExpander(boolean convertToLines, double length, DecimalFormat df) {
+        this.convertToLines = convertToLines;
+        this.length = length;
+        this.df = df;
+    }
+
     @Override
     public List<String> processCommand(String command, GcodeState state) throws GcodeParserException {
         if (state.currentPoint == null) throw new GcodeParserException(Localization.getString("parser.processor.arc.start-error"));
 
         List<String> results = new ArrayList<>();
 
-        List<GcodeMeta> commands = GcodeParser.processCommand(command, 0, state);
+        List<GcodeMeta> commands = GcodeParserUtils.processCommand(command, 0, state, true);
 
         // If this is not an arc, there is nothing to do.
         Code c = hasArcCommand(commands);
@@ -97,18 +105,18 @@ public class ArcExpander implements CommandProcessor {
                 start, end, ps.center(), ps.isClockwise(),
                 ps.getRadius(), 0, this.length, new PlaneFormatter(ps.getPlaneState()));
 
+        if (points.isEmpty()) {
+            return results;
+        }
+
         // That function returns the first and last points. Exclude the first
         // point because the previous gcode command ends there already.
         points.remove(0);
 
         if (convertToLines) {
-            // Tack the speed onto the first line segment in case the arc also
-            // changed the feed value.
-            String feed = "F" + arcMeta.point.getSpeed();
             for (Position point : points) {
-                results.add(GcodePreprocessorUtils.generateLineFromPoints(G1, start, point, state.inAbsoluteMode, df) + feed);
+                results.add(GcodePreprocessorUtils.generateLineFromPoints(G1, start, point, state.inAbsoluteMode, df));
                 start = point;
-                feed = "";
             }
         } else {
             // TODO: Generate arc segments.

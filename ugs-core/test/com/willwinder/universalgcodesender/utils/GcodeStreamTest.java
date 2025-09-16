@@ -18,16 +18,20 @@
  */
 package com.willwinder.universalgcodesender.utils;
 
+import com.willwinder.universalgcodesender.gcode.DefaultCommandCreator;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
-import java.io.File;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.PrintWriter;
+
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+
 import org.apache.commons.io.FileUtils;
 import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.BeforeClass;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  *
@@ -39,17 +43,7 @@ public class GcodeStreamTest {
     {
         final File temp;
 
-        temp = File.createTempFile("temp", Long.toString(System.nanoTime()));
-
-        if(!(temp.delete()))
-        {
-            throw new IOException("Could not delete temp file: " + temp.getAbsolutePath());
-        }
-
-        if(!(temp.mkdir()))
-        {
-            throw new IOException("Could not create temp directory: " + temp.getAbsolutePath());
-        }
+        temp = Files.createTempDirectory("temp" + Long.toString(System.nanoTime())).toFile();
 
         return (temp);
     }
@@ -68,14 +62,15 @@ public class GcodeStreamTest {
     @Test(expected=GcodeStreamReader.NotGcodeStreamFile.class)
     public void testNotGcodeStream() throws FileNotFoundException, IOException, GcodeStreamReader.NotGcodeStreamFile {
         File f = new File(tempDir,"gcodeFile");
-        try (PrintWriter writer = new PrintWriter(f)) {
+        try (PrintWriter writer = new PrintWriter(f, StandardCharsets.UTF_8.name())) {
             writer.println("invalid format");
         }
        
-        new GcodeStreamReader(f);
+        new GcodeStreamReader(f, new DefaultCommandCreator());
     }
 
     /**
+     * Make sure all the metadata is written when using a {@link GcodeStreamWriter}.
      * Writes 1,000,000 rows to a file then reads it back out.
      */
     @Test
@@ -89,7 +84,7 @@ public class GcodeStreamTest {
                 }
             }
 
-            try (IGcodeStreamReader gsr = new GcodeStreamReader(f)) {
+            try (IGcodeStreamReader gsr = new GcodeStreamReader(f, new DefaultCommandCreator())) {
                 Assert.assertEquals(rows, gsr.getNumRows());
 
                 int count = 0;
@@ -106,6 +101,41 @@ public class GcodeStreamTest {
             }
         } finally {
             FileUtils.forceDelete(f);
+        }
+    }
+
+    /**
+     * Make sure all the gcode stream metadata is removed when using a {@link GcodeFileWriter}.
+     */
+    @Test
+    public void gcodeWriterTest() throws IOException {
+        File f = new File(tempDir,"gcodeFile");
+        int rows = 1000;
+        String comment = "some comment";
+        try (IGcodeWriter gcw = new GcodeFileWriter(f)) {
+            for (int i = 0; i < rows; i++) {
+                String c = "";
+                if (i%2 == 0) {
+                    c = comment;
+                }
+                gcw.addLine("xxxxxxxxxxxxxxxxxxxxx", "Line " + i + " after", c, i);
+            }
+        }
+
+        try (InputStream fileInputStream = new FileInputStream(f)) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(fileInputStream, StandardCharsets.UTF_8));
+            int i = 0;
+            while (reader.ready()) {
+                String c = "";
+                if (i%2 == 0) {
+                    c = " (" + comment + ")";
+                }
+
+                String line = reader.readLine();
+                assertThat(line).isEqualTo("Line " + i + " after" + c);
+                i++;
+            }
+            assertThat(i).isEqualTo(rows);
         }
     }
 }

@@ -1,5 +1,5 @@
 /*
-    Copyright 2012-2018 Will Winder
+    Copyright 2012-2023 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -22,11 +22,13 @@ package com.willwinder.universalgcodesender;
 import com.willwinder.universalgcodesender.actions.ConfigureFirmwareAction;
 import com.willwinder.universalgcodesender.actions.OpenMacroSettingsAction;
 import com.willwinder.universalgcodesender.connection.ConnectionFactory;
+import com.willwinder.universalgcodesender.connection.IConnectionDevice;
+import com.willwinder.universalgcodesender.gcode.DefaultCommandCreator;
 import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.MessageType;
-import com.willwinder.universalgcodesender.model.Alarm;
 import com.willwinder.universalgcodesender.model.BaudRateEnum;
 import com.willwinder.universalgcodesender.model.UnitUtils;
+import com.willwinder.universalgcodesender.model.events.*;
 import com.willwinder.universalgcodesender.uielements.components.GcodeFileTypeFilter;
 import com.willwinder.universalgcodesender.uielements.macros.MacroActionPanel;
 import com.willwinder.universalgcodesender.uielements.panels.CommandPanel;
@@ -45,13 +47,11 @@ import com.willwinder.universalgcodesender.pendantui.PendantUI;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
 import com.willwinder.universalgcodesender.visualizer.VisualizerWindow;
 import com.willwinder.universalgcodesender.model.UGSEvent;
-import com.willwinder.universalgcodesender.listeners.ControllerListener;
 import com.willwinder.universalgcodesender.listeners.ControllerStatus;
 import com.willwinder.universalgcodesender.model.GUIBackend;
 import static com.willwinder.universalgcodesender.utils.GUIHelpers.displayErrorDialog;
-import java.awt.Color;
-import java.awt.KeyEventDispatcher;
-import java.awt.KeyboardFocusManager;
+
+import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.ComponentEvent;
@@ -61,21 +61,21 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.util.*;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 import javax.swing.*;
 import javax.swing.Timer;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import static com.willwinder.universalgcodesender.model.Axis.*;
 import com.willwinder.universalgcodesender.model.Position;
-import com.willwinder.universalgcodesender.model.UGSEvent.ControlState;
 import com.willwinder.universalgcodesender.pendantui.PendantURLBean;
 import com.willwinder.universalgcodesender.services.JogService;
 import com.willwinder.universalgcodesender.uielements.jog.JogPanel;
 import com.willwinder.universalgcodesender.utils.GUIHelpers;
 import com.willwinder.universalgcodesender.utils.GcodeStreamReader;
-import java.awt.BorderLayout;
-import java.awt.Toolkit;
+
 import javax.swing.text.DefaultEditorKit;
 import org.apache.commons.lang3.SystemUtils;
 
@@ -84,14 +84,14 @@ import org.apache.commons.lang3.SystemUtils;
  *
  * @author wwinder
  */
-public class MainWindow extends JFrame implements ControllerListener, UGSEventListener {
+public class MainWindow extends JFrame implements UGSEventListener {
     private static final Logger logger = Logger.getLogger(MainWindow.class.getName());
 
     private PendantUI pendantUI;
     private Settings settings;
-    
+
     private BackendAPI backend;
-    
+
     // My Variables
     private javax.swing.JFileChooser fileChooser;
 
@@ -99,7 +99,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
     private VisualizerWindow vw = null;
     private String gcodeFile = null;
     private String processedGcodeFile = null;
-    
+
     // Duration timer
     private Timer timer;
 
@@ -132,7 +132,6 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
         this.jogPanelPanel.add(jogPanel, BorderLayout.CENTER);
         initProgram();
         Utils.checkNightlyBuild(settings);
-        backend.addControllerListener(this);
         backend.addUGSEventListener(this);
         KeepAwakeUtils.start(backend);
 
@@ -148,7 +147,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
         setLocation(settings.getMainWindowSettings().xLocation, settings.getMainWindowSettings().yLocation);
 
         initFileChooser();
-        
+
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             System.out.println("Shutting down...");
 
@@ -166,16 +165,16 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
             }
         }));
     }
-    
+
     /**
      * @param args the command line arguments
      */
     public static void main(String args[]) {
-        
+
         /* Set the Nimbus look and feel */
         //<editor-fold defaultstate="collapsed" desc=" Look and feel setting code (optional) ">
         /* If Nimbus (introduced in Java SE 6) is not available, stay with the default look and feel.
-         * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html 
+         * For details see http://download.oracle.com/javase/tutorial/uiswing/lookandfeel/plaf.html
          */
         try {
             for (javax.swing.UIManager.LookAndFeelInfo info : javax.swing.UIManager.getInstalledLookAndFeels()) {
@@ -213,11 +212,11 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
                 im.put(KeyStroke.getKeyStroke(a, meta), DefaultEditorKit.selectAllAction);
             }
         }
-        
+
          /* Create the form */
         GUIBackend backend = new GUIBackend();
         final MainWindow mw = new MainWindow(backend);
-        
+
         /* Apply the settings to the MainWindow bofore showing it */
         mw.fileChooser = new JFileChooser(mw.settings.getLastOpenedFilename());
         mw.commPortComboBox.setSelectedItem(mw.settings.getPort());
@@ -265,7 +264,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
                 mw.setVisible(true);
             }
         });
-        
+
         mw.initFileChooser();
 
         // Check command line for a file to open.
@@ -1100,7 +1099,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
     }// </editor-fold>//GEN-END:initComponents
     /** End of generated code.
      */
-    
+
     /** Generated callback functions, hand coded.
      */
     private void scrollWindowCheckBoxActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_scrollWindowCheckBoxActionPerformed
@@ -1119,7 +1118,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
             String firmware = this.firmwareComboBox.getSelectedItem().toString();
             String port = commPortComboBox.getSelectedItem().toString();
             int baudRate = Integer.parseInt(baudrateSelectionComboBox.getSelectedItem().toString());
-            
+
             try {
                 this.backend.connect(firmware, port, baudRate);
             } catch (Exception e) {
@@ -1148,9 +1147,9 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
                 Localization.getString("sender.header"),
                 new ConnectionSettingsPanel(settings),
                 this, true);
-        
+
         gcsd.setVisible(true);
-        
+
         if (gcsd.saveChanges()) {
             try {
                 backend.applySettings(settings);
@@ -1179,7 +1178,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
         // Create new object if it is null.
         if (this.vw == null) {
             this.vw = new VisualizerWindow(settings.getVisualizerWindowSettings());
-            
+
             final MainWindow mw = this;
             vw.addComponentListener(new ComponentListener() {
                 @Override
@@ -1203,7 +1202,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
             setVisualizerFile();
 
             // Add listener
-            this.backend.addControllerListener(vw);
+            this.backend.addUGSEventListener(vw);
         }
 
         // Display the form
@@ -1222,7 +1221,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
             displayErrorDialog(e.getMessage());
         }
     }
-    
+
     private void cancelButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_cancelButtonActionPerformed
         cancelButtonActionPerformed();
     }//GEN-LAST:event_cancelButtonActionPerformed
@@ -1234,11 +1233,11 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
             displayErrorDialog(e.getMessage());
         }
     }
-    
+
     private void pauseButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_pauseButtonActionPerformed
         pauseButtonActionPerformed();
     }//GEN-LAST:event_pauseButtonActionPerformed
-    
+
     private void sendButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_sendButtonActionPerformed
         // Timer for updating duration labels.
         ActionListener actionListener = new ActionListener() {
@@ -1272,6 +1271,9 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
         //       the rowsValueLabel that was just reset.
 
         try {
+            if (commandTableScrollPane.isEnabled()) {
+                commandTable.clear();
+            }
             this.backend.send();
             this.resetSentRowLabels(backend.getNumRows());
             timer.start();
@@ -1280,19 +1282,19 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
             logger.log(Level.INFO, "Exception in sendButtonActionPerformed.", e);
             displayErrorDialog(e.getMessage());
         }
-        
+
     }//GEN-LAST:event_sendButtonActionPerformed
 
     private void saveButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_saveButtonActionPerformed
         //displayErrorDialog("Disabled for refactoring.");
-        
+
         int returnVal = fileChooser.showSaveDialog(this);
         if (returnVal == JFileChooser.APPROVE_OPTION) {
             try {
                 File newFile = fileChooser.getSelectedFile();
                 IController controller = FirmwareUtils.getControllerFor("GRBL").get();
                 backend.applySettingsToController(settings, controller);
-                
+
                 backend.preprocessAndExportToFile(newFile);
             } catch (FileNotFoundException ex) {
                 displayErrorDialog(Localization.getString("mainWindow.error.openingFile")
@@ -1306,7 +1308,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
                         ": " + e.getMessage());
             }
         }
-        
+
     }//GEN-LAST:event_saveButtonActionPerformed
 
         private void startPendantServerButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_startPendantServerButtonActionPerformed
@@ -1317,7 +1319,6 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
             }
             this.startPendantServerButton.setEnabled(false);
             this.stopPendantServerButton.setEnabled(true);
-            this.backend.addControllerListener(pendantUI);
         }//GEN-LAST:event_startPendantServerButtonActionPerformed
 
         private void stopPendantServerButtonActionPerformed(java.awt.event.ActionEvent evt) {//GEN-FIRST:event_stopPendantServerButtonActionPerformed
@@ -1443,7 +1444,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
                 Localization.getString("settings.processors.header"),
                 new ControllerProcessorSettingsPanel(settings, FirmwareUtils.getConfigFiles()),
                 this, true);
-        
+
         gcsd.setVisible(true);
 
         if (gcsd.saveChanges()) {
@@ -1484,9 +1485,9 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
      * FileChooser has to be initialized after JFrame is opened, otherwise the settings will not be applied.
      */
     private void initFileChooser() {
-        this.fileChooser = GcodeFileTypeFilter.getGcodeFileChooser(settings.getLastOpenedFilename()); 
+        this.fileChooser = GcodeFileTypeFilter.getGcodeFileChooser(settings.getLastOpenedFilename());
     }
-        
+
     private void initProgram() {
         Localization.initialize(this.settings.getLanguage());
         try {
@@ -1494,85 +1495,14 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
         } catch (Exception e) {
             displayErrorDialog(e.getMessage());
         }
-        
+
         this.setLocalLabels();
         this.loadPortSelector();
         this.loadFirmwareSelector();
-        this.setTitle(Localization.getString("title") + " (" 
+        this.setTitle(Localization.getString("title") + " ("
                 + Localization.getString("version") + " " + Version.getVersionString() + ")");
 
-        // Add keyboard listener for manual controls.
-        KeyboardFocusManager.getCurrentKeyboardFocusManager()
-        .addKeyEventDispatcher(new KeyEventDispatcher() {
-            @Override
-            public boolean dispatchKeyEvent(KeyEvent e) {
-                // Check context.
-                if (((jogPanel.isKeyboardMovementEnabled()) &&
-                        e.getID() == KeyEvent.KEY_PRESSED)) {
-                    switch (e.getKeyCode()) {
-                        case KeyEvent.VK_RIGHT:
-                        case KeyEvent.VK_KP_RIGHT:
-                        case KeyEvent.VK_NUMPAD6:
-                            jogPanel.xPlusButtonActionPerformed();
-                            e.consume();
-                            return true;
-                        case KeyEvent.VK_LEFT:
-                        case KeyEvent.VK_KP_LEFT:
-                        case KeyEvent.VK_NUMPAD4:
-                            jogPanel.xMinusButtonActionPerformed();
-                            e.consume();
-                            return true;
-                        case KeyEvent.VK_UP:
-                        case KeyEvent.VK_KP_UP:
-                        case KeyEvent.VK_NUMPAD8:
-                            jogPanel.yPlusButtonActionPerformed();
-                            e.consume();
-                            return true;
-                        case KeyEvent.VK_DOWN:
-                        case KeyEvent.VK_KP_DOWN:
-                        case KeyEvent.VK_NUMPAD2:
-                            jogPanel.yMinusButtonActionPerformed();
-                            e.consume();
-                            return true;
-                        case KeyEvent.VK_PAGE_UP:
-                        case KeyEvent.VK_NUMPAD9:
-                            jogPanel.zPlusButtonActionPerformed();
-                            e.consume();
-                            return true;
-                        case KeyEvent.VK_PAGE_DOWN:
-                        case KeyEvent.VK_NUMPAD3:
-                            jogPanel.zMinusButtonActionPerformed();
-                            e.consume();
-                            return true;
-                        case KeyEvent.VK_ADD:
-                            jogPanel.increaseStepActionPerformed();
-                            e.consume();
-                            return true;
-                        case KeyEvent.VK_SUBTRACT:
-                            jogPanel.decreaseStepActionPerformed();
-                            e.consume();
-                            return true;
-                        case KeyEvent.VK_DIVIDE:
-                            jogPanel.divideStepActionPerformed();
-                            e.consume();
-                            return true;
-                        case KeyEvent.VK_MULTIPLY:
-                            jogPanel.multiplyStepActionPerformed();
-                            e.consume();
-                            return true;
-                        case KeyEvent.VK_INSERT:
-                        case KeyEvent.VK_NUMPAD0:
-                            //resetCoordinatesButtonActionPerformed(null);
-                            e.consume();
-                            return true;
-                        default:
-                            break;
-                    }
-                }
-
-                return false;
-            }
-        });
+        KeyBoardListener.registerListener(backend, jogPanel);
     }
 
     private void setStatusColorForState(ControllerState state) {
@@ -1590,41 +1520,38 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
         this.activeStateLabel.setBackground(color);
         this.activeStateValueLabel.setBackground(color);
     }
-    
+
     private void updateControls() {
         this.cancelButton.setEnabled(backend.canCancel());
         this.pauseButton.setEnabled(backend.canPause() || backend.isPaused());
         this.pauseButton.setText(backend.getPauseResumeText());
         this.sendButton.setEnabled(backend.canSend());
-        
+
         boolean hasFile = backend.getGcodeFile() != null;
         if (hasFile) {
             this.saveButton.setEnabled(true);
             this.visualizeButton.setEnabled(true);
         }
-        
-        switch (backend.getControlState()) {
-            case COMM_DISCONNECTED:
+
+        switch (backend.getControllerState()) {
+            case DISCONNECTED:
                 this.updateConnectionControlsStateOpen(false);
                 this.updateWorkflowControls(false);
                 this.setStatusColorForState(ControllerState.UNKNOWN);
                 break;
-            case COMM_IDLE:
+            case IDLE:
+            case CHECK:
+            case ALARM:
+            case CONNECTING:
                 this.updateConnectionControlsStateOpen(true);
                 this.updateWorkflowControls(true);
                 break;
-            case COMM_SENDING:
-                // Workflow tab
+            default:
                 this.updateWorkflowControls(false);
                 break;
-            case COMM_SENDING_PAUSED:
-
-                break;
-            default:
-                
         }
     }
-    
+
     /**
      * Enable/disable connection frame based on connection state.
      */
@@ -1640,7 +1567,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
             this.opencloseButton.setText(Localization.getString("open"));
         }
     }
-    
+
     private void updateWorkflowControls(boolean enabled) {
         this.resetCoordinatesButton.setEnabled(enabled);
         this.resetXButton.setEnabled(enabled);
@@ -1653,7 +1580,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
         this.toggleCheckMode.setEnabled(enabled);
         this.requestStateInformation.setEnabled(enabled);
     }
-    
+
     private void resetTimerLabels() {
         // Reset labels
         this.durationValueLabel.setText("00:00:00");
@@ -1676,7 +1603,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
         this.remainingRowsValueLabel.setText(totalRows);
         this.rowsValueLabel.setText(totalRows);
     }
-    
+
     /**
      * Updates all text labels in the GUI with localized labels.
      */
@@ -1726,12 +1653,15 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
         this.startPendantServerButton.setText(Localization.getString("PendantMenu.item.StartServer"));
         this.stopPendantServerButton.setText(Localization.getString("PendantMenu.item.StopServer"));
     }
-    
+
     // Scans for comm ports and puts them in the comm port combo box.
     private void loadPortSelector() {
         commPortComboBox.removeAllItems();
 
-        List<String> portList = ConnectionFactory.getPortNames(backend.getSettings().getConnectionDriver());
+        List<String> portList = ConnectionFactory.getDevices(backend.getSettings().getConnectionDriver()).stream()
+                .map(IConnectionDevice::getAddress)
+                .collect(Collectors.toList());
+
         if (portList.size() < 1) {
             if (settings.isShowSerialPortWarning()) {
                 displayErrorDialog(Localization.getString("mainWindow.error.noSerialPort"));
@@ -1747,11 +1677,11 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
             commPortComboBox.setSelectedIndex(0);
         }
     }
-    
+
     private void loadFirmwareSelector() {
         firmwareComboBox.removeAllItems();
         List<String> firmwareList = FirmwareUtils.getFirmwareList();
-        
+
         if (firmwareList.size() < 1) {
             displayErrorDialog(Localization.getString("mainWindow.error.noFirmware"));
         } else {
@@ -1761,96 +1691,12 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
             }
         }
     }
-    
+
     void clearTable() {
         this.commandTable.clear();
     }
-        
-    /** 
-     * SerialCommunicatorListener implementation.
-     */
-    
-    @Override
-    public void controlStateChange(ControlState state) {
 
-    }
-
-    @Override
-    public void fileStreamComplete(String filename, boolean success) {
-        remainingTimeValueLabel.setText(Utils.formattedMillis(0));
-        remainingRowsValueLabel.setText("" + backend.getNumRemainingRows());
-
-        if (success) {
-            java.awt.EventQueue.invokeLater(new Runnable() { @Override public void run() {
-                JOptionPane.showMessageDialog(new JFrame(),
-                        Localization.getString("mainWindow.ui.jobComplete") + " " + Utils.formattedMillis(backend.getSendDuration()),
-                        Localization.getString("success"), JOptionPane.INFORMATION_MESSAGE);
-                try {
-                    Thread.sleep(1000);
-                } catch (InterruptedException ex) {}
-
-                // Stop the timer after a delay to make sure it is updated.
-                timer.stop();
-            }});
-        } else {
-            displayErrorDialog(Localization.getString("mainWindow.error.jobComplete"));
-        }
-    }
-
-    @Override
-    public void receivedAlarm(Alarm alarm) {
-
-    }
-
-    @Override
-    public void commandSkipped(GcodeCommand command) {
-        commandSent(command);
-    }
-     
-    @Override
-    public void commandSent(final GcodeCommand command) {
-        java.awt.EventQueue.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                // sent
-                if (commandTableScrollPane.isEnabled()) {
-                    commandTable.addRow(command);
-                }
-                //commandTable.updateRow(command);
-            }});
-    }
-    
-    @Override
-    public void commandComment(String comment) {
-        latestCommentValueLabel.setText(comment);
-    }
-    
-    @Override
-    public void commandComplete(final GcodeCommand command) {
-        //String gcodeString = command.getCommandString().toLowerCase();
-        
-        // update gui
-        java.awt.EventQueue.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                if (commandTableScrollPane.isEnabled()) {
-                    commandTable.updateRow(command);
-                }
-
-                if (backend.isSendingFile()) {
-                    if (vw != null) {
-                        vw.setCompletedCommandNumber(command.getCommandNumber());
-                    }
-                }
-            }});
-    }
-
-    @Override
-    public void probeCoordinates(Position p) {
-    }
-    
-    @Override
-    public void statusStringListener(ControllerStatus status) {
+    public void updateControllerStatus(ControllerStatus status) {
         if (status == null) {
             return;
         }
@@ -1865,7 +1711,7 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
             this.machinePositionYValueLabel.setText( Utils.formatter.format(machineCoord.y) + units.abbreviation );
             this.machinePositionZValueLabel.setText( Utils.formatter.format(machineCoord.z) + units.abbreviation );
         }
-        
+
         if (status.getWorkCoord() != null) {
             Position workCoord = status.getWorkCoord().getPositionIn(units);
             this.workPositionXValueLabel.setText( Utils.formatter.format(workCoord.x) + units.abbreviation );
@@ -1893,43 +1739,90 @@ public class MainWindow extends JFrame implements ControllerListener, UGSEventLi
 
     @Override
     public void UGSEvent(UGSEvent evt) {
-        if (evt.isFileChangeEvent() || evt.isStateChangeEvent()) {
+        if (evt instanceof FileStateEvent || evt instanceof ControllerStateEvent) {
             this.updateControls();
         }
 
         // If we changed settings such as the preferred unit settings we may need to refresh the GUI
-        if (evt.isSettingChangeEvent() && backend.getController() != null && backend.getController().getControllerStatus() != null) {
-            statusStringListener(backend.getController().getControllerStatus());
+        if (evt instanceof SettingChangedEvent && backend.getController() != null && backend.getController().getControllerStatus() != null) {
+            updateControllerStatus(backend.getController().getControllerStatus());
         }
 
-        if (evt.isSettingChangeEvent()) {
+        if (evt instanceof SettingChangedEvent) {
             scrollWindowCheckBox.setSelected(backend.getSettings().isScrollWindowEnabled());
             showVerboseOutputCheckBox.setSelected(backend.getSettings().isVerboseOutputEnabled());
             commandTable.setAutoWindowScroll(backend.getSettings().isScrollWindowEnabled());
         }
 
-        if (evt.isFileChangeEvent()) {
-            switch(evt.getFileState()) {
+        if (evt instanceof ControllerStatusEvent) {
+            ControllerStatusEvent controllerStatusEvent = (ControllerStatusEvent) evt;
+            updateControllerStatus(controllerStatusEvent.getStatus());
+        } else if (evt instanceof FileStateEvent) {
+            FileStateEvent fileStateEvent = (FileStateEvent) evt;
+            switch(fileStateEvent.getFileState()) {
                 case FILE_LOADING:
-                    File f = backend.getGcodeFile();
                     fileModePanel.setBorder(javax.swing.BorderFactory.createTitledBorder(Localization.getString("mainWindow.swing.fileLabel") + ": " + backend.getGcodeFile().getName()));
                     fileModePanel.setToolTipText(backend.getGcodeFile().getAbsolutePath());
                     processedGcodeFile = null;
-                    gcodeFile = evt.getFile();
+                    gcodeFile = backend.getGcodeFile().getAbsolutePath();
                     break;
                 case FILE_LOADED:
-                    processedGcodeFile = evt.getFile();
-                    try {
-                        try (IGcodeStreamReader gsr = new GcodeStreamReader(backend.getProcessedGcodeFile())) {
-                            resetSentRowLabels(gsr.getNumRows());
-                        }
+                    processedGcodeFile = backend.getProcessedGcodeFile().getAbsolutePath();
+                    if (commandTableScrollPane.isEnabled()) {
+                        commandTable.clear();
+                    }
+                    try (IGcodeStreamReader gsr = new GcodeStreamReader(backend.getProcessedGcodeFile(), new DefaultCommandCreator())) {
+                        resetSentRowLabels(gsr.getNumRows());
                     } catch (IOException | GcodeStreamReader.NotGcodeStreamFile ex) {}
+                    break;
+                case FILE_STREAM_COMPLETE:
+                    remainingTimeValueLabel.setText(Utils.formattedMillis(0));
+                    remainingRowsValueLabel.setText("" + backend.getNumRemainingRows());
+                    EventQueue.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(new JFrame(),
+                                Localization.getString("mainWindow.ui.jobComplete") + " " + Utils.formattedMillis(backend.getSendDuration()),
+                                Localization.getString("success"), JOptionPane.INFORMATION_MESSAGE);
+                        try {
+                            Thread.sleep(1000);
+                        } catch (InterruptedException ex) {}
+
+                        // Stop the timer after a delay to make sure it is updated.
+                        timer.stop();
+                    });
                     break;
                 default:
                     break;
             }
 
             setVisualizerFile();
+        } else if (evt instanceof CommandEvent) {
+            CommandEvent commandEvent = (CommandEvent) evt;
+            GcodeCommand command = commandEvent.getCommand();
+            if ((commandEvent.getCommandEventType() == CommandEventType.COMMAND_SKIPPED ||
+                    commandEvent.getCommandEventType() == CommandEventType.COMMAND_SENT) && command.hasComment()) {
+                latestCommentValueLabel.setText(command.getComment());
+            }
+
+            if(!command.isGenerated()) {
+                if (commandEvent.getCommandEventType() == CommandEventType.COMMAND_COMPLETE) {
+                    // update gui
+                    EventQueue.invokeLater(() -> {
+                        if (commandTableScrollPane.isEnabled()) {
+                            commandTable.updateRow(command);
+                        }
+
+                        if (backend.isSendingFile() && vw != null && !command.isGenerated()) {
+                            vw.setCompletedCommandNumber(command.getCommandNumber());
+                        }
+                    });
+                } else if (commandEvent.getCommandEventType() == CommandEventType.COMMAND_SENT || commandEvent.getCommandEventType() == CommandEventType.COMMAND_SKIPPED) {
+                    EventQueue.invokeLater(() -> {
+                            if (commandTableScrollPane.isEnabled()) {
+                                commandTable.addRow(command);
+                            }
+                        });
+                }
+            }
         }
     }
 

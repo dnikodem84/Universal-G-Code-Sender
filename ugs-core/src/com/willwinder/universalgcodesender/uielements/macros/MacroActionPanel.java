@@ -23,6 +23,8 @@ import com.willwinder.universalgcodesender.MacroHelper;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
+import com.willwinder.universalgcodesender.model.events.SettingChangedEvent;
 import com.willwinder.universalgcodesender.types.Macro;
 import com.willwinder.universalgcodesender.utils.GUIHelpers;
 import com.willwinder.universalgcodesender.utils.ThreadHelper;
@@ -133,7 +135,7 @@ public class MacroActionPanel extends JPanel implements UGSEventListener {
         }
         MigLayout layout = new MigLayout("fillx, wrap " + columns + ", inset " + INSET, columnConstraint.toString());
         macroPanel.setLayout(layout);
-        
+
         // Put buttons in grid.
         int x = 0;
         int y = 0;
@@ -143,7 +145,7 @@ public class MacroActionPanel extends JPanel implements UGSEventListener {
             if (y == rows) {
                 x++;
                 y = 0;
-            }             
+            }
         }
         revalidate();
         super.doLayout();
@@ -161,19 +163,19 @@ public class MacroActionPanel extends JPanel implements UGSEventListener {
     }
 
     private void updateCustomGcodeControls(boolean enabled) {
-        for (JButton button : customGcodeButtons) {
-            button.setEnabled(enabled);
+        synchronized (this) {
+            customGcodeButtons.forEach((button -> button.setEnabled(enabled)));
         }
     }
 
     @Override
     public void UGSEvent(UGSEvent evt) {
-        if (evt.isSettingChangeEvent()) {
+        if (evt instanceof SettingChangedEvent) {
             ThreadHelper.invokeLater(() -> {
                 macros = backend.getSettings().getMacros();
                 doLayout();
             });
-        } else {
+        } else if (evt instanceof ControllerStateEvent){
             updateEnabledState();
         }
     }

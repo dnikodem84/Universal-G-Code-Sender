@@ -1,5 +1,5 @@
 /*
-    Copyright 2018 Will Winder
+    Copyright 2018-2024 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -18,15 +18,18 @@
  */
 package com.willwinder.universalgcodesender.connection;
 
+import java.util.HashMap;
+import java.util.Map;
+
 /**
  * An enum for describing the connection drivers available to the system.
  *
  * @author Joacim Breiler
  */
 public enum ConnectionDriver {
-    JSERIALCOMM("JSerialComm", "jserialcomm://"),
-    JSSC("JSSC", "jssc://"),
-    TCP("TCP", "tcp://");
+    JSERIALCOMM("Serial", "jserialcomm://"),
+    TCP("TCP", "tcp://"),
+    WS("WebSocket", "ws://");
 
     private final String prettyName;
     private final String protocol;
@@ -42,5 +45,25 @@ public enum ConnectionDriver {
 
     public String getProtocol() {
         return protocol;
+    }
+
+    public static String[] getPrettyNames() {
+        ConnectionDriver[] vals = values();
+        String[] res = new String[vals.length];
+        for(int i = 0; i < vals.length; ++i) {
+            res[i] = vals[i].getPrettyName();
+        }
+        return res;
+    }
+
+    public static ConnectionDriver prettyNameToEnum(String prettyName) {
+        return prettyName2Enum.get(prettyName);
+    }
+
+    private static Map<String, ConnectionDriver> prettyName2Enum = new HashMap<>();
+    static {
+        for(ConnectionDriver v : values()) {
+            prettyName2Enum.put(v.getPrettyName(), v);
+        }
     }
 }

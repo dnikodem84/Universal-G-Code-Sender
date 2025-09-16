@@ -1,5 +1,5 @@
 /*
-    Copywrite 2013-2018 Will Winder
+    Copyright 2013-2022 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -20,7 +20,6 @@ package com.willwinder.universalgcodesender.listeners;
 
 import com.willwinder.universalgcodesender.model.Alarm;
 import com.willwinder.universalgcodesender.model.Position;
-import com.willwinder.universalgcodesender.model.UGSEvent.ControlState;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
 
 /**
@@ -29,16 +28,31 @@ import com.willwinder.universalgcodesender.types.GcodeCommand;
  * @author wwinder
  */
 public interface ControllerListener {
+
     /**
-     * The controller has modified the state by itself, such as pausing a job on
-     * an error.
+     * An event triggered when a stream is stopped
      */
-    void controlStateChange(ControlState state);
+    void streamCanceled();
+
+    /**
+     * An event triggered when a stream is started
+     */
+    void streamStarted();
+
+    /**
+     * An event triggered when a started stream is paused
+     */
+    void streamPaused();
+
+    /**
+     * An event triggered when a paused stream is resumed
+     */
+    void streamResumed();
 
     /**
      * The file streaming has completed.
      */
-    void fileStreamComplete(String filename, boolean success);
+    void streamComplete();
 
     /**
      * If an alarm is received from the controller
@@ -51,21 +65,16 @@ public interface ControllerListener {
      * A command in the stream has been skipped.
      */
     void commandSkipped(GcodeCommand command);
-    
+
     /**
      * A command has successfully been sent to the controller.
      */
     void commandSent(GcodeCommand command);
-    
+
     /**
      * A command has been processed by the the controller.
      */
     void commandComplete(GcodeCommand command);
-    
-    /**
-     * A comment has been processed.
-     */
-    void commandComment(String comment);
 
     /**
      * Probe coordinates received.

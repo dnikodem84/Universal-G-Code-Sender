@@ -21,9 +21,11 @@ package com.willwinder.ugs.nbp.core.actions;
 
 import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.ugs.nbp.lib.services.LocalizingService;
+import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
 import com.willwinder.universalgcodesender.utils.GUIHelpers;
 import org.openide.awt.ActionID;
 import org.openide.awt.ActionReference;
@@ -39,7 +41,7 @@ import java.awt.event.ActionEvent;
         id = LocalizingService.ReturnToZeroActionId)
 @ActionRegistration(
         iconBase = ReturnToZeroAction.ICON_BASE,
-        displayName = "resources.MessagesBundle#" + LocalizingService.ReturnToZeroTitleKey,
+        displayName = "resources/MessagesBundle#" + LocalizingService.ReturnToZeroTitleKey,
         lazy = false)
 @ActionReferences({
         @ActionReference(
@@ -48,7 +50,7 @@ import java.awt.event.ActionEvent;
 })
 public final class ReturnToZeroAction extends AbstractAction implements UGSEventListener {
 
-    public static final String ICON_BASE = "resources/icons/zero.png";
+    public static final String ICON_BASE = "resources/icons/zero.svg";
 
     private BackendAPI backend;
 
@@ -65,14 +67,16 @@ public final class ReturnToZeroAction extends AbstractAction implements UGSEvent
 
     @Override
     public void UGSEvent(UGSEvent cse) {
-        if (cse.isStateChangeEvent()) {
+        if (cse instanceof ControllerStateEvent) {
             java.awt.EventQueue.invokeLater(() -> setEnabled(isEnabled()));
         }
     }
 
     @Override
     public boolean isEnabled() {
-        return backend.isIdle();
+        return backend.isIdle() &&
+                backend.getControllerState() == ControllerState.IDLE &&
+                backend.getController().getCapabilities().hasReturnToZero();
     }
 
     @Override

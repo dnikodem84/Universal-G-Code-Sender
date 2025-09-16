@@ -1,5 +1,5 @@
 /*
-    Copyright 2018 Will Winder
+    Copyright 2018-2023 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -19,19 +19,24 @@
 package com.willwinder.universalgcodesender;
 
 import com.google.gson.JsonObject;
+import com.willwinder.universalgcodesender.gcode.DefaultCommandCreator;
 import com.willwinder.universalgcodesender.gcode.GcodeState;
 import com.willwinder.universalgcodesender.gcode.util.Code;
 import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.ControllerStatus;
-import com.willwinder.universalgcodesender.model.*;
+import com.willwinder.universalgcodesender.listeners.OverridePercents;
+import com.willwinder.universalgcodesender.model.Axis;
+import com.willwinder.universalgcodesender.model.Overrides;
+import com.willwinder.universalgcodesender.model.PartialPosition;
+import com.willwinder.universalgcodesender.model.Position;
+import com.willwinder.universalgcodesender.model.UnitUtils;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import org.junit.Test;
 
 import java.util.List;
 import java.util.Optional;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
 
 /**
  * Tests for the TinyGUtils class
@@ -42,45 +47,45 @@ public class TinyGUtilsTest {
 
     @Test
     public void generateSetWorkPositionCommandShouldGenerateGcode() {
-        ControllerStatus controllerStatus = new ControllerStatus("", ControllerState.UNKNOWN, new Position(10, 10, 10, UnitUtils.Units.MM), new Position(10, 10, 10, UnitUtils.Units.MM));
+        ControllerStatus controllerStatus = new ControllerStatus(ControllerState.UNKNOWN, new Position(10, 10, 10, UnitUtils.Units.MM), new Position(10, 10, 10, UnitUtils.Units.MM));
         GcodeState gcodeState = new GcodeState();
 
         gcodeState.offset = Code.G54;
-        String command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, PartialPosition.from(Axis.X, 5.0));
+        String command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, PartialPosition.from(Axis.X, 5.0, UnitUtils.Units.MM));
         assertEquals("G10 L2 P1 X5", command);
 
         gcodeState.offset = Code.G55;
-        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, PartialPosition.from(Axis.Y, 15.0));
+        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, PartialPosition.from(Axis.Y, 15.0, UnitUtils.Units.MM));
         assertEquals("G10 L2 P2 Y-5", command);
 
         gcodeState.offset = Code.G56;
-        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, PartialPosition.from(Axis.Z, 0.0));
+        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, PartialPosition.from(Axis.Z, 0.0, UnitUtils.Units.MM));
         assertEquals("G10 L2 P3 Z10", command);
 
         gcodeState.offset = Code.G57;
-        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, PartialPosition.from(Axis.Z, 0.0));
+        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, PartialPosition.from(Axis.Z, 0.0, UnitUtils.Units.MM));
         assertEquals("G10 L2 P4 Z10", command);
 
         gcodeState.offset = Code.G58;
-        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, PartialPosition.from(Axis.Z, 0.0));
+        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, PartialPosition.from(Axis.Z, 0.0, UnitUtils.Units.MM));
         assertEquals("G10 L2 P5 Z10", command);
 
         gcodeState.offset = Code.G59;
-        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, PartialPosition.from(Axis.Z, 0.0));
+        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, PartialPosition.from(Axis.Z, 0.0, UnitUtils.Units.MM));
         assertEquals("G10 L2 P6 Z10", command);
 
         gcodeState.offset = Code.G59;
-        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, new PartialPosition(10.0, 20.0));
+        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, new PartialPosition(10.0, 20.0, UnitUtils.Units.MM));
         assertEquals("G10 L2 P6 X-0Y-10", command); // the negative Zero gets formatted as "-0" - is this a problem?
 
         gcodeState.offset = Code.G59;
-        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, new PartialPosition(10.0, 20.0, 30.0));
+        command = TinyGUtils.generateSetWorkPositionCommand(controllerStatus, gcodeState, new PartialPosition(10.0, 20.0, 30.0, UnitUtils.Units.MM));
         assertEquals("G10 L2 P6 X-0Y-10Z-20", command);
     }
 
     @Test
     public void generateResetCoordinatesToZeroCommandShouldGenerateGcode() {
-        ControllerStatus controllerStatus = new ControllerStatus("", ControllerState.UNKNOWN, new Position(10, 20, 30, UnitUtils.Units.MM), new Position(10, 10, 10, UnitUtils.Units.MM));
+        ControllerStatus controllerStatus = new ControllerStatus(ControllerState.UNKNOWN, new Position(10, 20, 30, UnitUtils.Units.MM), new Position(10, 10, 10, UnitUtils.Units.MM));
         GcodeState gcodeState = new GcodeState();
 
         gcodeState.offset = Code.G54;
@@ -203,59 +208,59 @@ public class TinyGUtilsTest {
 
     @Test
     public void createOverrideCommandForFeedOverride() {
-        ControllerStatus.OverridePercents overridePercents = new ControllerStatus.OverridePercents(100, 150, 175);
-        Optional<GcodeCommand> overrideCommand = TinyGUtils.createOverrideCommand(overridePercents, Overrides.CMD_FEED_OVR_COARSE_PLUS);
+        OverridePercents overridePercents = new OverridePercents(100, 150, 175);
+        Optional<GcodeCommand> overrideCommand = TinyGUtils.createOverrideCommand(new DefaultCommandCreator(), overridePercents, Overrides.CMD_FEED_OVR_COARSE_PLUS);
         assertEquals("{mfo:1.1}", overrideCommand.get().getCommandString());
 
-        overrideCommand = TinyGUtils.createOverrideCommand(overridePercents, Overrides.CMD_FEED_OVR_COARSE_MINUS);
+        overrideCommand = TinyGUtils.createOverrideCommand(new DefaultCommandCreator(), overridePercents, Overrides.CMD_FEED_OVR_COARSE_MINUS);
         assertEquals("{mfo:0.9}", overrideCommand.get().getCommandString());
 
-        overrideCommand = TinyGUtils.createOverrideCommand(overridePercents, Overrides.CMD_FEED_OVR_FINE_MINUS);
+        overrideCommand = TinyGUtils.createOverrideCommand(new DefaultCommandCreator(), overridePercents, Overrides.CMD_FEED_OVR_FINE_MINUS);
         assertEquals("{mfo:0.95}", overrideCommand.get().getCommandString());
 
-        overrideCommand = TinyGUtils.createOverrideCommand(overridePercents, Overrides.CMD_FEED_OVR_FINE_PLUS);
+        overrideCommand = TinyGUtils.createOverrideCommand(new DefaultCommandCreator(), overridePercents, Overrides.CMD_FEED_OVR_FINE_PLUS);
         assertEquals("{mfo:1.05}", overrideCommand.get().getCommandString());
     }
 
     @Test
     public void createOverrideCommandForSpindleOverride() {
-        ControllerStatus.OverridePercents overridePercents = new ControllerStatus.OverridePercents(150, 175, 100);
-        Optional<GcodeCommand> overrideCommand = TinyGUtils.createOverrideCommand(overridePercents, Overrides.CMD_SPINDLE_OVR_COARSE_PLUS);
+        OverridePercents overridePercents = new OverridePercents(150, 175, 100);
+        Optional<GcodeCommand> overrideCommand = TinyGUtils.createOverrideCommand(new DefaultCommandCreator(), overridePercents, Overrides.CMD_SPINDLE_OVR_COARSE_PLUS);
         assertEquals("{sso:1.1}", overrideCommand.get().getCommandString());
 
-        overrideCommand = TinyGUtils.createOverrideCommand(overridePercents, Overrides.CMD_SPINDLE_OVR_COARSE_MINUS);
+        overrideCommand = TinyGUtils.createOverrideCommand(new DefaultCommandCreator(), overridePercents, Overrides.CMD_SPINDLE_OVR_COARSE_MINUS);
         assertEquals("{sso:0.9}", overrideCommand.get().getCommandString());
 
-        overrideCommand = TinyGUtils.createOverrideCommand(overridePercents, Overrides.CMD_SPINDLE_OVR_FINE_MINUS);
+        overrideCommand = TinyGUtils.createOverrideCommand(new DefaultCommandCreator(), overridePercents, Overrides.CMD_SPINDLE_OVR_FINE_MINUS);
         assertEquals("{sso:0.95}", overrideCommand.get().getCommandString());
 
-        overrideCommand = TinyGUtils.createOverrideCommand(overridePercents, Overrides.CMD_SPINDLE_OVR_FINE_PLUS);
+        overrideCommand = TinyGUtils.createOverrideCommand(new DefaultCommandCreator(), overridePercents, Overrides.CMD_SPINDLE_OVR_FINE_PLUS);
         assertEquals("{sso:1.05}", overrideCommand.get().getCommandString());
     }
 
     @Test
     public void updateControllerStatusShouldHandleFeedOverrides() {
-        ControllerStatus lastControllerStatus = new ControllerStatus("Idle", ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(0, 0, 0, UnitUtils.Units.MM));
+        ControllerStatus lastControllerStatus = new ControllerStatus(ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(0, 0, 0, UnitUtils.Units.MM));
 
         JsonObject response = TinyGUtils.jsonToObject("{sr:{mfo:1.4}}");
         ControllerStatus controllerStatus = TinyGUtils.updateControllerStatus(lastControllerStatus, response);
-        assertEquals(140, controllerStatus.getOverrides().feed);
+        assertEquals(140, controllerStatus.getOverrides().feed());
 
         response = TinyGUtils.jsonToObject("{sr:{mfo:0.8}}");
         controllerStatus = TinyGUtils.updateControllerStatus(lastControllerStatus, response);
-        assertEquals(80, controllerStatus.getOverrides().feed);
+        assertEquals(80, controllerStatus.getOverrides().feed());
     }
 
     @Test
     public void updateControllerStatusShouldHandleSpindleverrides() {
-        ControllerStatus lastControllerStatus = new ControllerStatus("Idle", ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(0, 0, 0, UnitUtils.Units.MM));
+        ControllerStatus lastControllerStatus = new ControllerStatus(ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(0, 0, 0, UnitUtils.Units.MM));
 
         JsonObject response = TinyGUtils.jsonToObject("{sr:{sso:1.4}}");
         ControllerStatus controllerStatus = TinyGUtils.updateControllerStatus(lastControllerStatus, response);
-        assertEquals(140, controllerStatus.getOverrides().spindle);
+        assertEquals(140, controllerStatus.getOverrides().spindle());
 
         response = TinyGUtils.jsonToObject("{sr:{sso:0.8}}");
         controllerStatus = TinyGUtils.updateControllerStatus(lastControllerStatus, response);
-        assertEquals(80, controllerStatus.getOverrides().spindle);
+        assertEquals(80, controllerStatus.getOverrides().spindle());
     }
 }

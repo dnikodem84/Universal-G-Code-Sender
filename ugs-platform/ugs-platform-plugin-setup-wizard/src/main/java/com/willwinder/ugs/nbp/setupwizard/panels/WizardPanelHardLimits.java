@@ -1,5 +1,5 @@
 /*
-    Copyright 2018 Will Winder
+    Copyright 2018-2020 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -22,12 +22,13 @@ import com.willwinder.ugs.nbp.setupwizard.AbstractWizardPanel;
 import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettings;
 import com.willwinder.universalgcodesender.i18n.Localization;
-import com.willwinder.universalgcodesender.listeners.ControllerStateListener;
-import com.willwinder.universalgcodesender.listeners.ControllerStatus;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.Alarm;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.AlarmEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStatusEvent;
+import com.willwinder.universalgcodesender.model.events.FirmwareSettingEvent;
 import com.willwinder.universalgcodesender.uielements.components.RoundedBorder;
 import com.willwinder.universalgcodesender.uielements.helpers.ThemeColors;
 import com.willwinder.universalgcodesender.utils.ThreadHelper;
@@ -39,6 +40,7 @@ import org.openide.util.ImageUtilities;
 import javax.swing.JCheckBox;
 import javax.swing.JLabel;
 import javax.swing.JPanel;
+import javax.swing.SwingConstants;
 import java.awt.Color;
 import java.awt.Font;
 
@@ -48,10 +50,10 @@ import java.awt.Font;
  *
  * @author Joacim Breiler
  */
-public class WizardPanelHardLimits extends AbstractWizardPanel implements UGSEventListener, ControllerStateListener {
+public class WizardPanelHardLimits extends AbstractWizardPanel implements UGSEventListener {
     private static final int TIME_BEFORE_RESET_ON_ALARM = 600;
     private JCheckBox checkboxEnableHardLimits;
-    private JLabel labelHardLimitssNotSupported;
+    private JLabel labelHardLimitsNotSupported;
     private JLabel labelDescription;
     private JLabel labelInstructions;
     private JLabel labelLimitX;
@@ -71,7 +73,7 @@ public class WizardPanelHardLimits extends AbstractWizardPanel implements UGSEve
         JPanel panel = new JPanel(new MigLayout("fillx, inset 0, gap 5, hidemode 3"));
         panel.add(labelDescription, "growx, wrap, gapbottom 10, spanx");
         panel.add(checkboxEnableHardLimits, "wrap, gapbottom 10, spanx");
-        panel.add(labelHardLimitssNotSupported, "wrap, spanx");
+        panel.add(labelHardLimitsNotSupported, "wrap, spanx");
 
         panel.add(labelInstructions, "spanx, gapbottom 10, wrap");
         panel.add(labelLimitX, "wmin 56, hmin 36, gapleft 5");
@@ -95,8 +97,8 @@ public class WizardPanelHardLimits extends AbstractWizardPanel implements UGSEve
         checkboxEnableHardLimits = new JCheckBox("Enable limit switches");
         checkboxEnableHardLimits.addActionListener(event -> onHardLimitsClicked());
 
-        labelHardLimitssNotSupported = new JLabel("<html><body>" + Localization.getString("platform.plugin.setupwizard.limit-switches.not-available") + "</body></html>", ImageUtilities.loadImageIcon("icons/information24.png", false), JLabel.LEFT);
-        labelHardLimitssNotSupported.setVisible(false);
+        labelHardLimitsNotSupported = new JLabel("<html><body>" + Localization.getString("platform.plugin.setupwizard.limit-switches.not-available") + "</body></html>", ImageUtilities.loadImageIcon("icons/information24.png", false), SwingConstants.LEFT);
+        labelHardLimitsNotSupported.setVisible(false);
 
         labelLimitX = createLimitLabel("X");
         labelLimitX.setVisible(false);
@@ -119,7 +121,7 @@ public class WizardPanelHardLimits extends AbstractWizardPanel implements UGSEve
     }
 
     private JLabel createLimitLabel(String text) {
-        JLabel label = new JLabel(text, JLabel.CENTER);
+        JLabel label = new JLabel(text, SwingConstants.CENTER);
         label.setFont(label.getFont().deriveFont(Font.BOLD));
         label.setBorder(new RoundedBorder(8));
         label.setForeground(Color.WHITE);
@@ -140,14 +142,12 @@ public class WizardPanelHardLimits extends AbstractWizardPanel implements UGSEve
     @Override
     public void initialize() {
         getBackend().addUGSEventListener(this);
-        getBackend().addControllerStateListener(this);
         refreshComponents();
     }
 
     @Override
     public void destroy() {
         getBackend().removeUGSEventListener(this);
-        getBackend().removeControllerStateListener(this);
     }
 
     @Override
@@ -158,16 +158,15 @@ public class WizardPanelHardLimits extends AbstractWizardPanel implements UGSEve
 
     @Override
     public void UGSEvent(UGSEvent evt) {
-        if (evt.isFirmwareSettingEvent()) {
+        if (evt instanceof FirmwareSettingEvent) {
             refreshComponents();
-        } else if (evt.isControllerStatusEvent()) {
+        } else if (evt instanceof ControllerStatusEvent controllerStatus) {
             ThreadHelper.invokeLater(() -> {
-                ControllerStatus controllerStatus = evt.getControllerStatus();
-                labelLimitX.setBackground(controllerStatus.getEnabledPins().X ? ThemeColors.RED : ThemeColors.LIGHT_GREEN);
-                labelLimitY.setBackground(controllerStatus.getEnabledPins().Y ? ThemeColors.RED : ThemeColors.LIGHT_GREEN);
-                labelLimitZ.setBackground(controllerStatus.getEnabledPins().Z ? ThemeColors.RED : ThemeColors.LIGHT_GREEN);
+                labelLimitX.setBackground(controllerStatus.getStatus().getEnabledPins().x() ? ThemeColors.RED : ThemeColors.LIGHT_GREEN);
+                labelLimitY.setBackground(controllerStatus.getStatus().getEnabledPins().y() ? ThemeColors.RED : ThemeColors.LIGHT_GREEN);
+                labelLimitZ.setBackground(controllerStatus.getStatus().getEnabledPins().z() ? ThemeColors.RED : ThemeColors.LIGHT_GREEN);
             });
-        } else if (evt.getEventType() == UGSEvent.EventType.ALARM_EVENT && evt.getAlarm() == Alarm.HARD_LIMIT) {
+        } else if (evt instanceof AlarmEvent alarmEvent && alarmEvent.getAlarm() == Alarm.HARD_LIMIT) {
             ThreadHelper.invokeLater(() -> {
                 try {
                     getBackend().issueSoftReset();
@@ -191,7 +190,7 @@ public class WizardPanelHardLimits extends AbstractWizardPanel implements UGSEve
                     labelLimitX.setVisible(firmwareSettings.isHardLimitsEnabled());
                     labelLimitY.setVisible(firmwareSettings.isHardLimitsEnabled());
                     labelLimitZ.setVisible(firmwareSettings.isHardLimitsEnabled());
-                    labelHardLimitssNotSupported.setVisible(false);
+                    labelHardLimitsNotSupported.setVisible(false);
                 } else {
                     checkboxEnableHardLimits.setVisible(false);
                     checkboxInvertLimitPins.setVisible(false);
@@ -199,7 +198,7 @@ public class WizardPanelHardLimits extends AbstractWizardPanel implements UGSEve
                     labelLimitX.setVisible(false);
                     labelLimitY.setVisible(false);
                     labelLimitZ.setVisible(false);
-                    labelHardLimitssNotSupported.setVisible(true);
+                    labelHardLimitsNotSupported.setVisible(true);
                 }
             } catch (FirmwareSettingsException e) {
                 NotifyDescriptor nd = new NotifyDescriptor.Message("Couldn't fetch the hard limits settings: " + e.getMessage(), NotifyDescriptor.ERROR_MESSAGE);

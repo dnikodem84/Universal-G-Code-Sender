@@ -18,7 +18,7 @@
  */
 package com.willwinder.universalgcodesender.connection;
 
-import com.willwinder.universalgcodesender.AbstractCommunicator;
+import com.willwinder.universalgcodesender.communicator.AbstractCommunicator;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -29,11 +29,11 @@ import static org.mockito.Mockito.verify;
 
 public class ResponseMessageHandlerTest {
 
-    private ResponseMessageHandler responseMessageHandler;
+    private ConnectionListenerManager responseMessageHandler;
 
     @Before
     public void setUp() {
-        responseMessageHandler = new ResponseMessageHandler();
+        responseMessageHandler = new ConnectionListenerManager();
     }
 
     @Test
@@ -43,7 +43,8 @@ public class ResponseMessageHandlerTest {
         responseMessageHandler.addListener(communicator);
 
         // When
-        responseMessageHandler.handleResponse("test");
+        String response = "test";
+        responseMessageHandler.handleResponse(response.getBytes(), 0, response.length());
 
         // Then
         verify(communicator, times(0)).handleResponseMessage(any());
@@ -56,7 +57,8 @@ public class ResponseMessageHandlerTest {
         responseMessageHandler.addListener(communicator);
 
         // When
-        responseMessageHandler.handleResponse("test\r");
+        String response = "test\r";
+        responseMessageHandler.handleResponse(response.getBytes(), 0, response.length());
 
         // Then
         verify(communicator, times(0)).handleResponseMessage(any());
@@ -69,7 +71,8 @@ public class ResponseMessageHandlerTest {
         responseMessageHandler.addListener(communicator);
 
         // When
-        responseMessageHandler.handleResponse("test\n");
+        String response = "test\n";
+        responseMessageHandler.handleResponse(response.getBytes(), 0, response.length());
 
         // Then
         verify(communicator, times(1)).handleResponseMessage("test");
@@ -82,7 +85,8 @@ public class ResponseMessageHandlerTest {
         responseMessageHandler.addListener(communicator);
 
         // When
-        responseMessageHandler.handleResponse("test\r\n");
+        String response = "test\r\n";
+        responseMessageHandler.handleResponse(response.getBytes(), 0, response.length());
 
         // Then
         verify(communicator, times(1)).handleResponseMessage("test");
@@ -95,7 +99,8 @@ public class ResponseMessageHandlerTest {
         responseMessageHandler.addListener(communicator);
 
         // When
-        responseMessageHandler.handleResponse("test1\r\n test2 \ntest3");
+        String response = "test1\r\n test2 \ntest3";
+        responseMessageHandler.handleResponse(response.getBytes(), 0, response.length());
 
         // Then
         verify(communicator, times(1)).handleResponseMessage("test1");
@@ -110,10 +115,14 @@ public class ResponseMessageHandlerTest {
         responseMessageHandler.addListener(communicator);
 
         // When
-        responseMessageHandler.handleResponse("test1\r\n ");
-        responseMessageHandler.handleResponse("test2");
-        responseMessageHandler.handleResponse(" \r\n");
-        responseMessageHandler.handleResponse("test3\n");
+        String response = "test1\r\n ";
+        responseMessageHandler.handleResponse(response.getBytes(), 0, response.length());
+        response = "test2";
+        responseMessageHandler.handleResponse(response.getBytes(), 0, response.length());
+        response = " \r\n";
+        responseMessageHandler.handleResponse(response.getBytes(), 0, response.length());
+        response = "test3\n";
+        responseMessageHandler.handleResponse(response.getBytes(), 0, response.length());
 
         // Then
         verify(communicator, times(1)).handleResponseMessage("test1");

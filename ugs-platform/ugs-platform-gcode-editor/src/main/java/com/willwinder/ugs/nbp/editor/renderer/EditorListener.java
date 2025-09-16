@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2019 Will Winder
+    Copyright 2016-2021 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -23,13 +23,12 @@ import com.willwinder.ugs.nbm.visualizer.shared.GcodeRenderer;
 import com.willwinder.ugs.nbm.visualizer.shared.Renderable;
 import com.willwinder.ugs.nbm.visualizer.shared.RenderableUtils;
 import com.willwinder.universalgcodesender.i18n.Localization;
-import java.util.ArrayList;
-import java.util.Collection;
-import javax.swing.JEditorPane;
+import org.openide.util.Lookup;
+
+import javax.swing.*;
 import javax.swing.event.CaretEvent;
 import javax.swing.event.CaretListener;
 import javax.swing.text.Element;
-import org.openide.util.Lookup;
 
 /**
  * Listens for editor events to notify visualizer, puts changes on the
@@ -40,37 +39,41 @@ import org.openide.util.Lookup;
 public class EditorListener implements CaretListener {
     private Highlight highlight = null;
 
-  public EditorListener() {
-    GcodeRenderer gcodeRenderer = Lookup.getDefault().lookup(GcodeRenderer.class);
-      GcodeModel gcodeModel = null;
-      for (Renderable renderable : gcodeRenderer.getRenderables()) {
-      if (renderable.getClass() == GcodeModel.class) {
-        gcodeModel = (GcodeModel) renderable;
-      }
+    public EditorListener() {
+        reset();
     }
 
-    if (gcodeModel != null) {
-      highlight = new Highlight(gcodeModel, Localization.getString("platform.visualizer.renderable.highlight"));
+    @Override
+    public void caretUpdate(CaretEvent e) {
+        if (e.getSource() instanceof JEditorPane) {
+            JEditorPane jep = (JEditorPane) e.getSource();
+
+            Element map = jep.getDocument().getDefaultRootElement();
+            int startIndex = map.getElementIndex(jep.getSelectionStart());
+            int endIndex = map.getElementIndex(jep.getSelectionEnd());
+
+            if (highlight != null) {
+                highlight.setHighlightedLines(startIndex, endIndex);
+            }
+        }
     }
 
-    RenderableUtils.registerRenderable(highlight);
-  }
+    public void reset() {
+        GcodeRenderer gcodeRenderer = Lookup.getDefault().lookup(GcodeRenderer.class);
+        GcodeModel gcodeModel = null;
+        for (Renderable renderable : gcodeRenderer.getRenderables()) {
+            if (renderable.getClass() == GcodeModel.class) {
+                gcodeModel = (GcodeModel) renderable;
+            }
+        }
 
-  @Override
-  public void caretUpdate(CaretEvent e) {
-    if (e.getSource() instanceof JEditorPane) {
-      JEditorPane jep = (JEditorPane) e.getSource();
-
-      Element map = jep.getDocument().getDefaultRootElement();
-      int startIndex = map.getElementIndex(jep.getSelectionStart());
-      int endIndex   = map.getElementIndex(jep.getSelectionEnd());
-
-      Collection<Integer> selectedLines = new ArrayList<>();
-      for (int i = startIndex; i <= endIndex; i++) {
-        selectedLines.add(i);
-      }
-
-      highlight.setHighlightedLines(selectedLines);
+        if (gcodeModel != null) {
+            if (highlight != null) {
+                highlight.setHighlightedLines(0, 0);
+            } else {
+                highlight = new Highlight(gcodeModel, Localization.getString("platform.visualizer.renderable.highlight"));
+                RenderableUtils.registerRenderable(highlight);
+            }
+        }
     }
-  }
 }

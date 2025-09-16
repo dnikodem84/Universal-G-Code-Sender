@@ -1,5 +1,5 @@
 /*
-    Copywrite 2018 Will Winder
+    Copyright 2018 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -18,6 +18,26 @@
  */
 package com.willwinder.universalgcodesender.model;
 
+/*
+ * This class defines all axis.
+ * There are cartesian axis (default X, Y, Z) which are
+ * displayed in the controller state, and rotation axis.
+ */
 public enum Axis {
-  X, Y, Z
+  // Cartesian
+  X, Y, Z,
+  // Rotation
+  A, // X
+  B, // Y
+  C  // Z
+  ;
+
+  public boolean isRotation() {
+      return ! isLinear();
+  }
+
+  public boolean isLinear() {
+    return this == X || this == Y || this == Z;
+  }
 }
+

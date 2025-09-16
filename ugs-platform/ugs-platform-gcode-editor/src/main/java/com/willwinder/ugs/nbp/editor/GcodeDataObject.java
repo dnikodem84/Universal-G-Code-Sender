@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2019 Will Winder
+    Copyright 2016-2023 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -18,17 +18,20 @@
 */
 package com.willwinder.ugs.nbp.editor;
 
-import org.openide.awt.ActionID;
-import org.openide.awt.ActionReference;
-import org.openide.awt.ActionReferences;
+import com.willwinder.ugs.nbp.lib.lookup.EditorCookie;
+import org.openide.cookies.OpenCookie;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.MIMEResolver;
 import org.openide.loaders.DataObject;
 import org.openide.loaders.MultiDataObject;
 import org.openide.loaders.MultiFileLoader;
 import org.openide.util.NbBundle.Messages;
+import org.openide.util.NbPreferences;
 
 import java.io.IOException;
+import java.util.prefs.Preferences;
+
+import static com.willwinder.ugs.nbp.editor.EditorUtils.openFile;
 
 @Messages({
         "LBL_Gcode_LOADER=Files of Gcode"
@@ -45,63 +48,26 @@ import java.io.IOException;
         displayName = "#LBL_Gcode_LOADER",
         position = 300
 )
-@ActionReferences({
-        @ActionReference(
-                path = "Loaders/text/xgcode/Actions",
-                id = @ActionID(category = "System", id = "org.openide.actions.OpenAction"),
-                position = 100,
-                separatorAfter = 200
-        ),
-        @ActionReference(
-                path = "Loaders/text/xgcode/Actions",
-                id = @ActionID(category = "Edit", id = "org.openide.actions.CutAction"),
-                position = 300
-        ),
-        @ActionReference(
-                path = "Loaders/text/xgcode/Actions",
-                id = @ActionID(category = "Edit", id = "org.openide.actions.CopyAction"),
-                position = 400,
-                separatorAfter = 500
-        ),
-        @ActionReference(
-                path = "Loaders/text/xgcode/Actions",
-                id = @ActionID(category = "Edit", id = "org.openide.actions.DeleteAction"),
-                position = 600
-        ),
-        @ActionReference(
-                path = "Loaders/text/xgcode/Actions",
-                id = @ActionID(category = "System", id = "org.openide.actions.RenameAction"),
-                position = 700,
-                separatorAfter = 800
-        ),
-        @ActionReference(
-                path = "Loaders/text/xgcode/Actions",
-                id = @ActionID(category = "System", id = "org.openide.actions.SaveAsTemplateAction"),
-                position = 900,
-                separatorAfter = 1000
-        ),
-        @ActionReference(
-                path = "Loaders/text/xgcode/Actions",
-                id = @ActionID(category = "System", id = "org.openide.actions.FileSystemAction"),
-                position = 1100,
-                separatorAfter = 1200
-        ),
-        @ActionReference(
-                path = "Loaders/text/xgcode/Actions",
-                id = @ActionID(category = "System", id = "org.openide.actions.ToolsAction"),
-                position = 1300
-        ),
-        @ActionReference(
-                path = "Loaders/text/xgcode/Actions",
-                id = @ActionID(category = "System", id = "org.openide.actions.PropertiesAction"),
-                position = 1400
-        )
-})
 public class GcodeDataObject extends MultiDataObject {
-
     public GcodeDataObject(FileObject pf, MultiFileLoader loader) throws IOException {
         super(pf, loader);
-        registerEditor(GcodeLanguageConfig.MIME_TYPE, true);
+
+        Preferences prefs = NbPreferences.forModule(EditorOptionsPanel.class);
+        boolean loadEditor = prefs.getBoolean(EditorOptionsPanel.SHOW_ON_OPEN, true);
+
+        if (loadEditor) {
+            registerEditor(GcodeLanguageConfig.MIME_TYPE, true);
+
+            // Add an editor cookie so that EditorUtils can find it
+            getCookieSet().add((EditorCookie) () -> {
+                OpenCookie cookie = getCookie(OpenCookie.class);
+                if (cookie != null) {
+                    cookie.open();
+                }
+            });
+        } else {
+            getCookieSet().add((OpenCookie) () -> openFile(pf));
+        }
     }
 
     @Override

@@ -23,9 +23,12 @@ import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.ugs.nbp.lib.services.LocalizingService;
 import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
 import com.willwinder.universalgcodesender.i18n.Localization;
+import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
+import com.willwinder.universalgcodesender.model.events.FirmwareSettingEvent;
 import com.willwinder.universalgcodesender.utils.GUIHelpers;
 import org.openide.awt.ActionID;
 import org.openide.awt.ActionReference;
@@ -33,15 +36,20 @@ import org.openide.awt.ActionReferences;
 import org.openide.awt.ActionRegistration;
 import org.openide.util.ImageUtilities;
 
-import javax.swing.*;
+import javax.swing.AbstractAction;
+import javax.swing.Action;
+import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 
+@com.willwinder.universalgcodesender.actions.Action(
+        icon = HomingAction.ICON_BASE
+)
 @ActionID(
         category = LocalizingService.HomeCategory,
         id = LocalizingService.HomeActionId)
 @ActionRegistration(
         iconBase = HomingAction.ICON_BASE,
-        displayName = "resources.MessagesBundle#" + LocalizingService.HomeTitleKey,
+        displayName = "resources/MessagesBundle#" + LocalizingService.HomeTitleKey,
         lazy = false)
 @ActionReferences({
         @ActionReference(
@@ -53,9 +61,9 @@ import java.awt.event.ActionEvent;
 })
 public final class HomingAction extends AbstractAction implements UGSEventListener {
 
-    public static final String ICON_BASE = "resources/icons/home.png";
+    public static final String ICON_BASE = "resources/icons/home.svg";
 
-    private BackendAPI backend;
+    private final BackendAPI backend;
 
     public HomingAction() {
         this.backend = CentralLookup.getDefault().lookup(BackendAPI.class);
@@ -66,12 +74,13 @@ public final class HomingAction extends AbstractAction implements UGSEventListen
         putValue("menuText", LocalizingService.HomeTitle);
         putValue(NAME, LocalizingService.HomeTitle);
         setEnabled(isEnabled());
+        updateToolTip();
     }
 
     @Override
     public void UGSEvent(UGSEvent cse) {
-        if (cse.isStateChangeEvent()) {
-            java.awt.EventQueue.invokeLater(() -> {
+        if (cse instanceof ControllerStateEvent || cse instanceof FirmwareSettingEvent) {
+            EventQueue.invokeLater(() -> {
                 updateToolTip();
                 setEnabled(isEnabled());
             });
@@ -80,16 +89,16 @@ public final class HomingAction extends AbstractAction implements UGSEventListen
 
     @Override
     public boolean isEnabled() {
-        return backend.getController() != null &&
-                backend.getController().getFirmwareSettings() != null &&
-                backend.isIdle() &&
-                isHomingEnabled();
+        return (backend.getControllerState() == ControllerState.IDLE || backend.getControllerState() == ControllerState.ALARM) &&
+        isHomingEnabled();
     }
 
     private boolean isHomingEnabled() {
         boolean isHomingEnabled = false;
         try {
-            isHomingEnabled = backend.getController().getFirmwareSettings().isHomingEnabled();
+            isHomingEnabled = backend.getController() != null &&
+                    backend.getController().getFirmwareSettings() != null &&
+                    backend.getController().getFirmwareSettings().isHomingEnabled();
         } catch (FirmwareSettingsException ignored) {
             // Never mind
         }
@@ -111,7 +120,7 @@ public final class HomingAction extends AbstractAction implements UGSEventListen
                     !isHomingEnabled()) {
                 putValue(Action.SHORT_DESCRIPTION, Localization.getString("platform.actions.homing.disabled.tooltip"));
             } else {
-                putValue(Action.SHORT_DESCRIPTION, LocalizingService.HomeTitle);
+                putValue(Action.SHORT_DESCRIPTION, Localization.getString("platform.actions.homing.enabled.tooltip"));
             }
     }
 }

@@ -1,9 +1,5 @@
-/**
- * LocalizingService for core module top components.
- * Modules should use TopComponentLocalizer and @OnStart instead of this.
- */
 /*
-    Copyright 2016-2017 Will Winder
+    Copyright 2016-2024 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -30,16 +26,21 @@ import org.openide.util.Lookup;
 import org.openide.util.lookup.ServiceProvider;
 
 /**
+ * LocalizingService for core module top components.
  *
  * @author wwinder
  */
-@ServiceProvider(service=LocalizingService.class) 
+@ServiceProvider(service=LocalizingService.class)
 public class LocalizingService {
     public static final String MENU_WINDOW = "Menu/Window";
     public static final String MENU_WINDOW_PLUGIN = MENU_WINDOW +"/Plugins";
     public static final String MENU_WINDOW_CLASSIC = MENU_WINDOW + "/Classic";
     public static final String MENU_FILE = "Menu/File";
+    public static final String MENU_EDIT = "Menu/Edit";
+    public static final String MENU_TOOLS = "Menu/Tools";
     public static final String MENU_MACHINE = "Menu/Machine";
+    public static final String MENU_MACHINE_PROBE = "Menu/Machine/Probe";
+    public static final String MENU_PROGRAM = "Menu/Program";
     public static final String MENU_MACHINE_JOG = "Menu/Machine/Jog";
     public static final String MENU_MACHINE_JOG_STEP_SIZE = "Menu/Machine/Jog/Step Size";
     public static final String MENU_MACHINE_ACTIONS = "Menu/Machine/Actions";
@@ -48,15 +49,19 @@ public class LocalizingService {
 
     public static final String CATEGORY_WINDOW = "Window";
     public static final String CATEGORY_MACHINE = "Machine";
+    public static final String CATEGORY_PROGRAM = "Program";
     public static final String CATEGORY_FILE = "File";
     public static final String CATEGORY_VISUALIZER = "Visualizer";
+    public static final String CATEGORY_EDIT = "Edit";
+    public static final String CATEGORY_DESIGNER = "Designer";
+    public static final String CATEGORY_TOOLS = "Tools";
 
     // Initialize backend (locale setting) before we load localized strings.
     public static final String lang = CentralLookup.getDefault().lookup(BackendAPI.class).getSettings().getLanguage();
 
     public final static String SerialConsoleTitle = Localization.getString("platform.window.serialconsole", lang);
     public final static String SerialConsoleTooltip = Localization.getString("platform.window.serialconsole.tooltip", lang);
-    public final static String SerialConsoleWindowPath = MENU_WINDOW;
+    public final static String SerialConsoleWindowPath = MENU_WINDOW_CLASSIC;
     public final static String SerialConsoleActionId = "com.willwinder.universalgcodesender.nbp.console.SerialConsoleTopComponent";
     public final static String SerialConsoleCategory = CATEGORY_WINDOW;
 
@@ -71,7 +76,7 @@ public class LocalizingService {
     public final static String OverridesWindowPath = MENU_WINDOW;
     public final static String OverridesActionId = "com.willwinder.universalgcodesender.nbp.control.OverridesTopComponent";
     public final static String OverridesCategory = CATEGORY_WINDOW;
-    
+
     public final static String MacrosTitle = Localization.getString("platform.window.macros", lang);
     public final static String MacrosTooltip = Localization.getString("platform.window.macros.tooltip", lang);
     public final static String MacrosWindowPath = MENU_WINDOW;
@@ -101,7 +106,7 @@ public class LocalizingService {
     public final static String LocationStatusTooltip = Localization.getString("platform.window.dro.tooltip", lang);
     public final static String LocationStatusWindowPath = MENU_WINDOW;
     public final static String LocationStatusActionId = "com.willwinder.ugs.nbp.control.StatusTopComponent";
-    public final static String LocationStatusCategory = CATEGORY_WINDOW;
+    public final static String LocationStatusCategory = MENU_WINDOW_PLUGIN;
 
     public final static String ActionsTitle = Localization.getString("platform.window.actions", lang);
     public final static String ActionsTooltip = Localization.getString("platform.window.actions.tooltip", lang);
@@ -115,6 +120,15 @@ public class LocalizingService {
     public final static String OpenActionId = "com.willwinder.ugs.nbp.core.actions.OpenAction";
     public final static String OpenCategory = CATEGORY_FILE;
 
+    public final static String OpenRecentTitleKey = "platform.menu.open.recent";
+    public final static String OpenRecentTitle = Localization.getString(OpenRecentTitleKey, lang);
+
+    public final static String SaveTitleKey = "platform.menu.save";
+    public final static String SaveTitle = Localization.getString(SaveTitleKey, lang);
+    public final static String SaveWindowPath = MENU_FILE;
+    public final static String SaveActionId = "com.willwinder.ugs.nbp.core.actions.SaveAction";
+    public final static String SaveCategory = CATEGORY_FILE;
+
     public final static String ReloadGcodeTitleKey = "platform.menu.reload";
     public final static String ReloadGcodeTitle = Localization.getString(ReloadGcodeTitleKey, lang);
     public final static String ReloadGcodeWindowPath = MENU_FILE;
@@ -123,19 +137,19 @@ public class LocalizingService {
 
     public final static String StartTitleKey = "mainWindow.swing.sendButton";
     public final static String StartTitle = Localization.getString(StartTitleKey, lang);
-    public final static String StartWindowPath = MENU_MACHINE;
+    public final static String StartWindowPath = MENU_PROGRAM;
     public final static String StartActionId = "com.willwinder.ugs.nbp.core.actions.StartAction";
     public final static String StartCategory = CATEGORY_MACHINE;
 
     public final static String PauseTitleKey = "mainWindow.swing.pauseButton";
     public final static String PauseTitle = Localization.getString(PauseTitleKey, lang);
-    public final static String PauseWindowPath = MENU_MACHINE;
+    public final static String PauseWindowPath = MENU_PROGRAM;
     public final static String PauseActionId = "com.willwinder.ugs.nbp.core.actions.PauseAction";
     public final static String PauseCategory = CATEGORY_MACHINE;
 
     public final static String StopTitleKey = "mainWindow.swing.stopButton";
     public final static String StopTitle = Localization.getString(StopTitleKey, lang);
-    public final static String StopWindowPath = MENU_MACHINE;
+    public final static String StopWindowPath = MENU_PROGRAM;
     public final static String StopActionId = "com.willwinder.ugs.nbp.core.actions.StopAction";
     public final static String StopCategory = CATEGORY_MACHINE;
 
@@ -169,6 +183,12 @@ public class LocalizingService {
     public final static String SoftResetActionId = "com.willwinder.ugs.nbp.core.actions.SoftResetAction";
     public final static String SoftResetCategory = CATEGORY_MACHINE;
 
+    public final static String OpenDoorTitleKey = "mainWindow.swing.openDoor";
+    public final static String OpenDoorTitle = Localization.getString(OpenDoorTitleKey, lang);
+    public final static String OpenDoorWindowPath = MENU_MACHINE_ACTIONS;
+    public final static String OpenDoorActionId = "com.willwinder.ugs.nbp.core.actions.OpenDoorAction";
+    public final static String OpenDoorCategory = CATEGORY_MACHINE;
+
     public final static String ResetZeroTitleKey = "mainWindow.swing.resetCoordinatesButton";
     public final static String ResetZeroTitle = Localization.getString(ResetZeroTitleKey, lang);
     public final static String ResetZeroWindowPath = MENU_MACHINE_ACTIONS;
@@ -193,6 +213,24 @@ public class LocalizingService {
     public final static String ResetZZeroActionId = "com.willwinder.ugs.nbp.core.actions.ResetZCoordinatesToZeroAction";
     public final static String ResetZZeroCategory = CATEGORY_MACHINE;
 
+    public final static String ResetAZeroTitleKey = "action.resetACoordinatesButton";
+    public final static String ResetAZeroTitle = Localization.getString(ResetAZeroTitleKey, lang);
+    public final static String ResetAZeroWindowPath = MENU_MACHINE_ACTIONS;
+    public final static String ResetAZeroActionId = "com.willwinder.ugs.nbp.core.actions.ResetACoordinatesToZeroAction";
+    public final static String ResetAZeroCategory = CATEGORY_MACHINE;
+
+    public final static String ResetBZeroTitleKey = "action.resetBCoordinatesButton";
+    public final static String ResetBZeroTitle = Localization.getString(ResetBZeroTitleKey, lang);
+    public final static String ResetBZeroWindowPath = MENU_MACHINE_ACTIONS;
+    public final static String ResetBZeroActionId = "com.willwinder.ugs.nbp.core.actions.ResetBCoordinatesToZeroAction";
+    public final static String ResetBZeroCategory = CATEGORY_MACHINE;
+
+    public final static String ResetCZeroTitleKey = "action.resetCCoordinatesButton";
+    public final static String ResetCZeroTitle = Localization.getString(ResetCZeroTitleKey, lang);
+    public final static String ResetCZeroWindowPath = MENU_MACHINE_ACTIONS;
+    public final static String ResetCZeroActionId = "com.willwinder.ugs.nbp.core.actions.ResetCCoordinatesToZeroAction";
+    public final static String ResetCZeroCategory = CATEGORY_MACHINE;
+
 
     public final static String CheckModeTitleKey = "mainWindow.swing.checkMode";
     public final static String CheckModeTitle = Localization.getString(CheckModeTitleKey, lang);
@@ -206,9 +244,18 @@ public class LocalizingService {
     public final static String GetStateActionId = "com.willwinder.ugs.nbp.core.actions.GetStateAction";
     public final static String GetStateCategory = CATEGORY_MACHINE;
 
+    public final static String OutlineTitleKey = "platform.action.outline";
+    public final static String OutlineTitle = Localization.getString(OutlineTitleKey, lang);
+    public final static String OutlineToolTipKey = "platform.action.outline.tooltip";
+    public final static String OutlineToolTip = Localization.getString(OutlineToolTipKey, lang);
+    public final static String OutlineWindowPath = MENU_MACHINE_ACTIONS;
+    public final static String OutlineActionId = "com.willwinder.ugs.nbp.core.actions.OutlineAction";
+    public final static String OutlineCategory = CATEGORY_PROGRAM;
+
     public final static String ConnectDisconnectTitleConnect = Localization.getString("mainWindow.ui.connect", lang);
     public final static String ConnectDisconnectTitleDisconnect = Localization.getString("mainWindow.ui.disconnect", lang);
     public final static String ConnectDisconnectActionTitleKey = "mainWindow.ui.connectDisconnect";
+    public final static String ConnectDisconnectActionTitle = Localization.getString("mainWindow.ui.connectDisconnect", lang);
     public final static String ConnectWindowPath = MENU_MACHINE;
     public final static String ConnectDisconnectActionId = "com.willwinder.ugs.nbp.core.actions.ConnectDisconnectAction";
     public final static String ConnectDisconnectCategory = CATEGORY_MACHINE;
@@ -250,6 +297,35 @@ public class LocalizingService {
     public final static String DiagnosticsWindowPath = MENU_WINDOW;
     public final static String DiagnosticsActionId = "com.willwinder.ugs.nbp.core.windows.DiagnosticsTopComponent";
     public final static String DiagnosticsCategory = CATEGORY_WINDOW;
+
+    public final static String FileBrowserPanelTitle =  Localization.getString("platform.window.fileBrowser", lang);
+    public final static String FileBrowserPanelTooltip = Localization.getString("platform.window.fileBrowser.tooltip", lang);
+    public final static String FileBrowserPanelActionId = "com.willwinder.ugs.nbp.core.windows.FileBrowserTopComponent";
+    public final static String FileBrowserPanelWindowPath = MENU_WINDOW;
+    public final static String FileBrowserPanelCategory = CATEGORY_WINDOW;
+
+    public final static String RunFromTitleKey = "platform.menu.runFrom";
+    public final static String RunFromTitle = Localization.getString(RunFromTitleKey, lang);
+    public final static String RunFromWindowPath = MENU_PROGRAM;
+    public final static String RunFromActionId = "com.willwinder.ugs.nbp.core.actions.RunFromAction";
+    public final static String RunFromCategory = CATEGORY_MACHINE;
+
+    public final static String InsertPositionTitleKey = "platform.menu.insertPosition";
+    public final static String InsertPositionTitle = Localization.getString(InsertPositionTitleKey, lang);
+
+    public final static String ToolboxTitle = Localization.getString("platform.plugin.toolbox.title", lang);
+    public final static String ToolboxTooltip = Localization.getString("platform.plugin.toolbox.tooltip", lang);
+    public final static String ToolboxSettingsTitle =  Localization.getString("platform.plugin.toolbox.settings.title", lang);
+
+    public final static String EditVisualizerOptionsTitleKey = "platform.visualizer.edit.options.title";
+    public final static String EditVisualizerOptionsTitle = Localization.getString(EditVisualizerOptionsTitleKey, lang);
+
+    public final static String ToggleUnitTitleKey = "platform.menu.toggleUnit";
+    public final static String ToggleUnitActionId = "com.willwinder.ugs.nbp.core.actions.ToggleUnitAction";
+    public final static String ToggleUnitTitle = Localization.getString(ToggleUnitTitleKey, lang);
+    public final static String ToggleUnitTooltip = Localization.getString(ToggleUnitTitleKey + ".tooltip", lang);
+    public final static String ToggleUnitWindowPath = MENU_MACHINE;
+    public final static String ToggleUnitCategory = CATEGORY_MACHINE;
 
     public LocalizingService() throws IOException {
         ActionRegistrationService ars =  Lookup.getDefault().lookup(ActionRegistrationService.class);

@@ -24,6 +24,7 @@ import com.willwinder.ugs.nbp.lib.services.LocalizingService;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
 import com.willwinder.universalgcodesender.utils.GUIHelpers;
 import org.openide.awt.ActionID;
 import org.openide.awt.ActionReference;
@@ -32,6 +33,7 @@ import org.openide.awt.ActionRegistration;
 import org.openide.util.ImageUtilities;
 
 import javax.swing.*;
+import java.awt.*;
 import java.awt.event.ActionEvent;
 
 @ActionID(
@@ -39,7 +41,7 @@ import java.awt.event.ActionEvent;
         id = LocalizingService.GetStateActionId)
 @ActionRegistration(
         iconBase = GetStateAction.ICON_BASE,
-        displayName = "resources.MessagesBundle#" + LocalizingService.GetStateTitleKey,
+        displayName = "resources/MessagesBundle#" + LocalizingService.GetStateTitleKey,
         lazy = false)
 @ActionReferences({
         @ActionReference(
@@ -48,7 +50,7 @@ import java.awt.event.ActionEvent;
 })
 public final class GetStateAction extends AbstractAction implements UGSEventListener {
 
-    public static final String ICON_BASE = "resources/icons/state.png";
+    public static final String ICON_BASE = "resources/icons/state.svg";
 
     private BackendAPI backend;
 
@@ -65,8 +67,8 @@ public final class GetStateAction extends AbstractAction implements UGSEventList
 
     @Override
     public void UGSEvent(UGSEvent cse) {
-        if (cse.isStateChangeEvent()) {
-            java.awt.EventQueue.invokeLater(() -> setEnabled(isEnabled()));
+        if (cse instanceof ControllerStateEvent) {
+            EventQueue.invokeLater(() -> setEnabled(isEnabled()));
         }
     }
 

@@ -18,6 +18,7 @@
  */
 package com.willwinder.ugs.nbm.visualizer.actions;
 
+import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.PartialPosition;
 import com.willwinder.universalgcodesender.model.Position;
@@ -27,7 +28,9 @@ import javax.swing.*;
 import java.awt.event.ActionEvent;
 
 /**
- * An action that will jog to a coordinate
+ * An action for setting the work position for X/Y axis to given position
+ *
+ * @author Daniel Weigl
  */
 public class SetWorkingCoordinatesHereAction extends AbstractAction {
     private final BackendAPI backend;
@@ -36,16 +39,15 @@ public class SetWorkingCoordinatesHereAction extends AbstractAction {
     public SetWorkingCoordinatesHereAction(BackendAPI backend, Position position) {
         this.backend = backend;
         this.position = position;
-        if (position == null || !backend.isConnected()) {
+        if (position == null || backend.getControllerState() != ControllerState.IDLE) {
             setEnabled(false);
         }
     }
 
-
     @Override
     public void actionPerformed(ActionEvent e) {
         try {
-            backend.setWorkPosition(new PartialPosition(position.getX(), position.getY()));
+            backend.setWorkPosition(new PartialPosition(position.getX(), position.getY(), position.getUnits()));
         } catch (Exception ex) {
             GUIHelpers.displayErrorDialog(ex.getLocalizedMessage());
         }

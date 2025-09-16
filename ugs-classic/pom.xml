@@ -5,11 +5,10 @@
     <parent>
         <groupId>com.willwinder.universalgcodesender</groupId>
         <artifactId>ugs-parent</artifactId>
-        <version>2.0-SNAPSHOT</version>
+        <version>${revision}${changelist}</version>
     </parent>
 
     <artifactId>ugs-classic</artifactId>
-    <version>2.0-SNAPSHOT</version>
     <packaging>jar</packaging>
 
     <name>${project.artifactId}</name>
@@ -17,13 +16,7 @@
     <url>https://github.com/winder/Universal-G-Code-Sender/tree/master/ugs-classic</url>
 
     <properties>
-        <timestamp>${maven.build.timestamp}</timestamp>
-        <maven.build.timestamp.format>MMM dd, yyyy</maven.build.timestamp.format>
-
-        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.build.releaseSourceDirectory>release_files</project.build.releaseSourceDirectory>
-        <maven.compiler.source>1.8</maven.compiler.source>
-        <maven.compiler.target>1.8</maven.compiler.target>
     </properties>
 
     <dependencies>
@@ -42,15 +35,15 @@
             <artifactId>ugs-cli</artifactId>
             <version>${project.version}</version>
         </dependency>
-
-        <!-- ************************* -->
-        <!-- *** TEST dependencies ***-->
-
         <dependency>
-            <groupId>org.easymock</groupId>
-            <artifactId>easymock</artifactId>
-            <version>3.4</version>
-            <scope>test</scope>
+            <groupId>org.jogamp.gluegen</groupId>
+            <artifactId>gluegen-rt-main</artifactId>
+            <version>${gluegen.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.jogamp.jogl</groupId>
+            <artifactId>jogl-all-main</artifactId>
+            <version>${jogl.version}</version>
         </dependency>
     </dependencies>
 
@@ -66,7 +59,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-jar-plugin</artifactId>
-                <version>2.5</version>
+                <version>${ugs.maven-jar-plugin.version}</version>
                 <configuration>
                     <archive>
                         <manifest>
@@ -81,7 +74,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
-                <version>2.4.1</version>
+                <version>${ugs.maven-shade-plugin.version}</version>
                 <executions>
                     <execution>
                         <phase>package</phase>
@@ -91,16 +84,34 @@
                         <configuration>
                             <finalName>UniversalGcodeSender</finalName>
                             <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.DontIncludeResourceTransformer">
+                                    <resource>MANIFEST.MF</resource>
+                                </transformer>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
+                                    <manifestEntries>
+                                        <Main-Class>com.willwinder.universalgcodesender.MainWindow</Main-Class>
+                                        <Multi-Release>true</Multi-Release>
+                                    </manifestEntries>
+                                </transformer>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.IncludeResourceTransformer"/>
                             </transformers>
+                            <artifactSet>
+                                <excludes>
+                                    <exclude>com.sun.activation:jakarta.activation</exclude>
+                                </excludes>
+                            </artifactSet>
                             <filters>
                                 <filter>
                                     <artifact>*:*</artifact>
                                     <excludes>
+                                        <exclude>module-info.*</exclude>
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
+                                        <exclude>META-INF/LICENSE*</exclude>
+                                        <exclude>META-INF/NOTICE*</exclude>
+                                        <exclude>about.html</exclude>
                                     </excludes>
                                 </filter>
                             </filters>
@@ -113,7 +124,7 @@
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-assembly-plugin</artifactId>
-                <version>2.5.3</version>
+                <version>${ugs.maven-assembly-plugin.version}</version>
                 <configuration>
                     <finalName>UniversalGcodeSender</finalName>
                     <appendAssemblyId>false</appendAssemblyId>

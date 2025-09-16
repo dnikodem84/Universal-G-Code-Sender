@@ -20,37 +20,30 @@ package com.willwinder.universalgcodesender.uielements.panels;
 
 import com.willwinder.universalgcodesender.Utils;
 import com.willwinder.universalgcodesender.i18n.Localization;
-import com.willwinder.universalgcodesender.listeners.ControllerListener;
-import com.willwinder.universalgcodesender.listeners.ControllerStatus;
+import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
-import com.willwinder.universalgcodesender.model.Alarm;
 import com.willwinder.universalgcodesender.model.BackendAPI;
-import com.willwinder.universalgcodesender.model.Position;
-import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.CommandEvent;
+import com.willwinder.universalgcodesender.model.events.CommandEventType;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
+import com.willwinder.universalgcodesender.model.events.FileStateEvent;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
 import com.willwinder.universalgcodesender.utils.GUIHelpers;
-import com.willwinder.universalgcodesender.utils.GcodeStreamReader;
-import com.willwinder.universalgcodesender.utils.IGcodeStreamReader;
 import net.miginfocom.swing.MigLayout;
 
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import javax.swing.JTextArea;
-import javax.swing.Timer;
+import javax.swing.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.io.IOException;
 
-import static com.willwinder.universalgcodesender.model.UGSEvent.ControlState.COMM_SENDING;
-import static com.willwinder.universalgcodesender.model.UGSEvent.FileState.FILE_LOADED;
-import static com.willwinder.universalgcodesender.model.UGSEvent.FileState.FILE_STREAM_COMPLETE;
+import static com.willwinder.universalgcodesender.model.events.FileState.FILE_LOADED;
+import static com.willwinder.universalgcodesender.model.events.FileState.FILE_STREAM_COMPLETE;
 
 /**
  * A send status panel for displaying the progress of a file stream
  *
  * @author wwinder
  */
-public class SendStatusPanel extends JPanel implements UGSEventListener, ControllerListener {
+public class SendStatusPanel extends JPanel implements UGSEventListener {
     private static final String AL_RIGHT = "al right";
     private final BackendAPI backend;
 
@@ -70,15 +63,10 @@ public class SendStatusPanel extends JPanel implements UGSEventListener, Control
 
     private Timer timer;
 
-    public SendStatusPanel() {
-        this(null);
-    }
-    
     public SendStatusPanel(BackendAPI b) {
         backend = b;
         if (backend != null) {
             backend.addUGSEventListener(this);
-            backend.addControllerListener(this);
         }
 
         initComponents();
@@ -92,7 +80,7 @@ public class SendStatusPanel extends JPanel implements UGSEventListener, Control
     private void update() {
         durationValue.setText(Utils.formattedMillis(backend.getSendDuration()));
         setRemainingTime(backend.getSendRemainingDuration());
-        sentRowsValue.setText(""+backend.getNumCompletedRows());
+        sentRowsValue.setText("" + backend.getNumCompletedRows());
         remainingRowsValue.setText("" + backend.getNumRemainingRows());
     }
 
@@ -122,7 +110,9 @@ public class SendStatusPanel extends JPanel implements UGSEventListener, Control
 
         this.resetTimerLabels();
 
-        if (timer != null){ timer.stop(); }
+        if (timer != null) {
+            timer.stop();
+        }
         timer = new Timer(400, actionListener);
 
         // Note: there is a divide by zero error in the timer because it uses
@@ -171,21 +161,13 @@ public class SendStatusPanel extends JPanel implements UGSEventListener, Control
     }
 
     private void resetSentRowLabels() {
-        long numRows = 0;
-        if (backend.getProcessedGcodeFile() != null) {
-            try {
-                try (IGcodeStreamReader gsr = new GcodeStreamReader(backend.getProcessedGcodeFile())) {
-                    numRows = gsr.getNumRows();
-                    System.out.println("NUM ROWS: " + numRows);
-                }
-            } catch (GcodeStreamReader.NotGcodeStreamFile | IOException ex) {}
-        }
+        String numRows = String.valueOf(backend.getNumRows());
+
         // Reset labels
-        String totalRows =  String.valueOf(numRows);
         resetTimerLabels();
-        this.sentRowsValue.setText("0");
-        this.remainingRowsValue.setText(totalRows);
-        this.rowsValue.setText(totalRows);
+        sentRowsValue.setText("0");
+        remainingRowsValue.setText(numRows);
+        rowsValue.setText(numRows);
     }
 
     private void initComponents() {
@@ -212,58 +194,29 @@ public class SendStatusPanel extends JPanel implements UGSEventListener, Control
     @Override
     public void UGSEvent(com.willwinder.universalgcodesender.model.UGSEvent evt) {
         // Look for a send beginning.
-        if (evt.isStateChangeEvent() && evt.getControlState() == COMM_SENDING) {
+        if (evt instanceof ControllerStateEvent && ((ControllerStateEvent) evt).getState() == ControllerState.RUN) {
             if (backend.isSendingFile()) {
                 beginSend();
             }
         }
 
         // On file loaded event, reset the rows.
-        if (evt.isFileChangeEvent() && evt.getFileState() == FILE_LOADED) {
-            resetSentRowLabels();
-        } else if (evt.isFileChangeEvent() && evt.getFileState() == FILE_STREAM_COMPLETE) {
-            update();
-            endSend();
+        else if (evt instanceof FileStateEvent) {
+            FileStateEvent fileStateEvent = (FileStateEvent) evt;
+            if (fileStateEvent.getFileState() == FILE_LOADED) {
+                resetSentRowLabels();
+            } else if (fileStateEvent.getFileState() == FILE_STREAM_COMPLETE) {
+                update();
+                endSend();
+            }
+        } else if (evt instanceof CommandEvent) {
+            CommandEvent commandEvent = ((CommandEvent) evt);
+            GcodeCommand command = commandEvent.getCommand();
+            if ((commandEvent.getCommandEventType() == CommandEventType.COMMAND_SENT ||
+                    commandEvent.getCommandEventType() == CommandEventType.COMMAND_SKIPPED) &&
+                    command.hasComment()) {
+                latestCommentValueLabel.setText(command.getComment());
+            }
         }
-    }
-
-    // Controller events below.
-
-    @Override
-    public void controlStateChange(UGSEvent.ControlState state) {
-    }
-
-    @Override
-    public void fileStreamComplete(String filename, boolean success) {
-    }
-
-    @Override
-    public void receivedAlarm(Alarm alarm) {
-
-    }
-
-    @Override
-    public void commandSkipped(GcodeCommand command) {
-    }
-
-    @Override
-    public void commandSent(GcodeCommand command) {
-    }
-
-    @Override
-    public void commandComplete(GcodeCommand command) {
-    }
-
-    @Override
-    public void commandComment(String comment) {
-        latestCommentValueLabel.setText(comment);
-    }
-
-    @Override
-    public void probeCoordinates(Position p) {
-    }
-
-    @Override
-    public void statusStringListener(ControllerStatus status) {
     }
 }

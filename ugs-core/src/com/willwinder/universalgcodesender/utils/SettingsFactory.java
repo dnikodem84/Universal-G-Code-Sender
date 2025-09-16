@@ -1,5 +1,5 @@
 /*
-    Copywrite 2013-2016 Christian Moll, Will Winder, Bob Jones
+    Copyright 2013-2023 Christian Moll, Will Winder, Bob Jones
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -20,10 +20,12 @@ package com.willwinder.universalgcodesender.utils;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonSyntaxException;
 import com.willwinder.universalgcodesender.i18n.Localization;
 import org.apache.commons.io.FileUtils;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.Properties;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -52,18 +54,14 @@ public class SettingsFactory {
             if (!settingsFile.exists()) {
                 settings = new Settings();
             } else {
-                try {
-                    //logger.log(Level.INFO, "{0}: {1}", new Object[]{Localization.getString("settings.log.location"), settingsFile});
+                try (InputStream fileInputStream = new FileInputStream(settingsFile)){
                     logger.log(Level.INFO, "Log location: {0}", settingsFile.getAbsolutePath());
                     logger.info("Loading settings.");
-                    settings = new Gson().fromJson(new FileReader(settingsFile), Settings.class);
+                    settings = new Gson().fromJson(new InputStreamReader(fileInputStream, StandardCharsets.UTF_8), Settings.class);
                     if (settings != null) {
                         settings.finalizeInitialization();
                     }
-                    // Localized setting not available here.
-                    //logger.info(Localization.getString("settings.log.loading"));
-                } catch (FileNotFoundException ex) {
-                    //logger.warning(Localization.getString("settings.log.error"));
+                } catch (IOException | IllegalStateException | JsonSyntaxException ex) {
                     logger.log(Level.SEVERE, "Can't load settings, using defaults.", ex);
                 }
             }
@@ -80,13 +78,15 @@ public class SettingsFactory {
         try {
             // Save json file.
             File jsonFile = getSettingsFile();
-            try (FileWriter fileWriter = new FileWriter(jsonFile)) {
-                Gson gson = new GsonBuilder().setPrettyPrinting().create();
-                fileWriter.write(gson.toJson(settings, Settings.class));
+            try (Writer writer = new OutputStreamWriter(new FileOutputStream(jsonFile), StandardCharsets.UTF_8)) {
+                Gson gson = new GsonBuilder()
+                        .setPrettyPrinting()
+                        .serializeSpecialFloatingPointValues()
+                        .create();
+                writer.write(gson.toJson(settings, Settings.class));
             }
          } catch (Exception e) {
-            e.printStackTrace();
-            logger.warning(Localization.getString("settings.log.saveerror"));
+            logger.log(Level.SEVERE, Localization.getString("settings.log.saveerror"), e);
         }
     }
 
@@ -138,11 +138,11 @@ public class SettingsFactory {
                 out.setSingleStepMode(Boolean.valueOf(properties.getProperty("singleStepMode", FALSE)));
                 out.setStatusUpdatesEnabled(Boolean.valueOf(properties.getProperty("statusUpdatesEnabled", "true")));
                 out.setStatusUpdateRate(Integer.valueOf(properties.getProperty("statusUpdateRate", "200")));
-                out.updateMacro(1, null, null, properties.getProperty("customGcode1", "G0 X0 Y0;"));
-                out.updateMacro(2, null, null, properties.getProperty("customGcode2", "G0 G91 X10;G0 G91 Y10;"));
-                out.updateMacro(3, null, null, properties.getProperty("customGcode3", ""));
-                out.updateMacro(4, null, null, properties.getProperty("customGcode4", ""));
-                out.updateMacro(5, null, null, properties.getProperty("customGcode5", ""));
+                out.updateMacro("customGcode1", 1, null, null, properties.getProperty("customGcode1", "G0 X0 Y0;"));
+                out.updateMacro("customGcode2", 2, null, null, properties.getProperty("customGcode2", "G0 G91 X10;G0 G91 Y10;"));
+                out.updateMacro("customGcode3", 3, null, null, properties.getProperty("customGcode3", ""));
+                out.updateMacro("customGcode4", 4, null, null, properties.getProperty("customGcode4", ""));
+                out.updateMacro("customGcode5", 5, null, null, properties.getProperty("customGcode5", ""));
                 out.setLanguage(properties.getProperty("language", "en_US"));
                 saveSettings(out);
 

@@ -1,5 +1,5 @@
 /*
-    Copyright 2013-2018 Will Winder
+    Copyright 2013-2023 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -21,9 +21,14 @@ package com.willwinder.universalgcodesender;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.willwinder.universalgcodesender.gcode.GcodeState;
+import com.willwinder.universalgcodesender.gcode.ICommandCreator;
 import com.willwinder.universalgcodesender.gcode.util.Code;
+import com.willwinder.universalgcodesender.listeners.AccessoryStates;
 import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.ControllerStatus;
+import com.willwinder.universalgcodesender.listeners.ControllerStatusBuilder;
+import com.willwinder.universalgcodesender.listeners.EnabledPins;
+import com.willwinder.universalgcodesender.listeners.OverridePercents;
 import com.willwinder.universalgcodesender.model.Axis;
 import com.willwinder.universalgcodesender.model.Overrides;
 import com.willwinder.universalgcodesender.model.PartialPosition;
@@ -49,7 +54,6 @@ public class TinyGUtils {
 
     public static final byte COMMAND_PAUSE = '!';
     public static final byte COMMAND_RESUME = '~';
-    public static final byte COMMAND_STATUS = '?';
     public static final byte COMMAND_QUEUE_FLUSH = '%';
     public static final byte COMMAND_KILL_JOB = 0x04;
     public static final byte COMMAND_ENQUIRE_STATUS = 0x05;
@@ -60,6 +64,7 @@ public class TinyGUtils {
     public static final String FIELD_STATUS_REPORT = "sr";
     private static final String FIELD_FIRMWARE_VERSION = "fv";
     private static final String FIELD_RESPONSE = "r";
+    private static final String FIELD_STATUS_ERROR = "err";
     private static final String FIELD_STATUS_REPORT_UNIT = "unit";
     private static final String FIELD_STATUS_REPORT_POSX = "posx";
     private static final String FIELD_STATUS_REPORT_POSY = "posy";
@@ -93,15 +98,16 @@ public class TinyGUtils {
      */
     private static final Pattern NUMBER_REGEX = Pattern.compile("^[-]?[\\d]+(\\.\\d+)?");
 
-    private static JsonParser parser = new JsonParser();
+    private static final JsonParser parser = new JsonParser();
 
     public static JsonObject jsonToObject(String response) {
         return parser.parse(response).getAsJsonObject();
     }
 
     public static boolean isTinyGVersion(JsonObject response) {
-        if (response.has(FIELD_RESPONSE)) {
-            JsonObject jo = response.getAsJsonObject(FIELD_RESPONSE);
+        Optional<JsonObject> responseObjectOptional = getResponseObject(response);
+        if (responseObjectOptional.isPresent()) {
+            JsonObject jo = responseObjectOptional.get();
             if (jo.has(FIELD_FIRMWARE_VERSION)) {
                 return true;
             }
@@ -109,19 +115,21 @@ public class TinyGUtils {
         return false;
     }
 
-    public static String getVersion(JsonObject response) {
-        if (response.has(FIELD_RESPONSE)) {
-            JsonObject jo = response.getAsJsonObject(FIELD_RESPONSE);
+    public static double getVersion(JsonObject response) {
+        Optional<JsonObject> responseObjectOptional = getResponseObject(response);
+        if (responseObjectOptional.isPresent()) {
+            JsonObject jo = responseObjectOptional.get();
             if (jo.has(FIELD_FIRMWARE_VERSION)) {
-                return jo.get(FIELD_FIRMWARE_VERSION).getAsString();
+                return jo.get(FIELD_FIRMWARE_VERSION).getAsDouble();
             }
         }
-        return "";
+        return 0;
     }
 
     public static boolean isRestartingResponse(JsonObject response) {
-        if (response.has(FIELD_RESPONSE)) {
-            JsonObject jo = response.getAsJsonObject(FIELD_RESPONSE);
+        Optional<JsonObject> responseObjectOptional = getResponseObject(response);
+        if (responseObjectOptional.isPresent()) {
+            JsonObject jo = responseObjectOptional.get();
             if (jo.has("msg")) {
                 String msg = jo.get("msg").getAsString();
                 return StringUtils.equals(msg, "Loading configs from EEPROM");
@@ -131,8 +139,9 @@ public class TinyGUtils {
     }
 
     public static boolean isReadyResponse(JsonObject response) {
-        if (response.has(FIELD_RESPONSE)) {
-            JsonObject jo = response.getAsJsonObject(FIELD_RESPONSE);
+        Optional<JsonObject> responseObjectOptional = getResponseObject(response);
+        if (responseObjectOptional.isPresent()) {
+            JsonObject jo = responseObjectOptional.get();
             if (jo.has("msg")) {
                 String msg = jo.get("msg").getAsString();
                 return StringUtils.equals(msg, "SYSTEM READY");
@@ -141,8 +150,21 @@ public class TinyGUtils {
         return false;
     }
 
+    private static Optional<JsonObject> getResponseObject(JsonObject response) {
+        if (response.has(FIELD_RESPONSE)) {
+            return Optional.of(response.getAsJsonObject(FIELD_RESPONSE));
+        } else if (response.has(FIELD_STATUS_REPORT)) {
+            return Optional.of(response.getAsJsonObject(FIELD_STATUS_REPORT));
+        }
+        return Optional.empty();
+    }
+
     public static boolean isStatusResponse(JsonObject response) {
         return response.has(TinyGUtils.FIELD_STATUS_REPORT) && response.get(TinyGUtils.FIELD_STATUS_REPORT).isJsonObject();
+    }
+
+    public static boolean isErrorResponse(JsonObject response) {
+        return response.has(TinyGUtils.FIELD_RESPONSE) && response.get(TinyGUtils.FIELD_RESPONSE).getAsJsonObject().has(FIELD_STATUS_ERROR);
     }
 
     /**
@@ -156,7 +178,7 @@ public class TinyGUtils {
         if (isStatusResponse(response)) {
             JsonObject statusResultObject = response.getAsJsonObject(FIELD_STATUS_REPORT);
 
-            Position workCoord = lastControllerStatus.getWorkCoord();
+            Position workCoord = new Position(lastControllerStatus.getWorkCoord());
             UnitUtils.Units feedSpeedUnits = lastControllerStatus.getFeedSpeedUnits();
             if (hasNumericField(statusResultObject, FIELD_STATUS_REPORT_UNIT)) {
                 UnitUtils.Units units = statusResultObject.get(FIELD_STATUS_REPORT_UNIT).getAsInt() == 1 ? UnitUtils.Units.MM : UnitUtils.Units.INCH;
@@ -177,7 +199,7 @@ public class TinyGUtils {
             }
 
             // The machine coordinates are always in MM, make sure the position is using that unit before updating the values
-            Position machineCoord = lastControllerStatus.getMachineCoord().getPositionIn(UnitUtils.Units.MM);
+            Position machineCoord = new Position(lastControllerStatus.getMachineCoord().getPositionIn(UnitUtils.Units.MM));
             if (hasNumericField(statusResultObject, FIELD_STATUS_REPORT_MPOX)) {
                 machineCoord.setX(statusResultObject.get(FIELD_STATUS_REPORT_MPOX).getAsDouble());
             }
@@ -194,9 +216,9 @@ public class TinyGUtils {
             int overrideRapid = 100;
             int overrideSpindle = 100;
             if (lastControllerStatus.getOverrides() != null) {
-                overrideFeed = lastControllerStatus.getOverrides().feed;
-                overrideRapid = lastControllerStatus.getOverrides().rapid;
-                overrideSpindle = lastControllerStatus.getOverrides().spindle;
+                overrideFeed = lastControllerStatus.getOverrides().feed();
+                overrideRapid = lastControllerStatus.getOverrides().rapid();
+                overrideSpindle = lastControllerStatus.getOverrides().spindle();
             }
 
             if (hasNumericField(statusResultObject, FIELD_STATUS_REPORT_MFO)) {
@@ -220,19 +242,28 @@ public class TinyGUtils {
             }
 
             ControllerState state = lastControllerStatus.getState();
-            String stateString = lastControllerStatus.getStateString();
             if (hasNumericField(statusResultObject, FIELD_STATUS_REPORT_STATUS)) {
                 state = getState(statusResultObject.get(FIELD_STATUS_REPORT_STATUS).getAsInt());
-                stateString = getStateAsString(statusResultObject.get(FIELD_STATUS_REPORT_STATUS).getAsInt());
             }
 
             Double spindleSpeed = lastControllerStatus.getSpindleSpeed();
             Position workCoordinateOffset = lastControllerStatus.getWorkCoordinateOffset();
-            ControllerStatus.EnabledPins enabledPins = lastControllerStatus.getEnabledPins();
-            ControllerStatus.AccessoryStates accessoryStates = lastControllerStatus.getAccessoryStates();
+            EnabledPins enabledPins = lastControllerStatus.getEnabledPins();
+            AccessoryStates accessoryStates = lastControllerStatus.getAccessoryStates();
 
-            ControllerStatus.OverridePercents overrides = new ControllerStatus.OverridePercents(overrideFeed, overrideRapid, overrideSpindle);
-            return new ControllerStatus(stateString, state, machineCoord, workCoord, feedSpeed, feedSpeedUnits, spindleSpeed, overrides, workCoordinateOffset, enabledPins, accessoryStates);
+            OverridePercents overrides = new OverridePercents(overrideFeed, overrideRapid, overrideSpindle);
+            return ControllerStatusBuilder.newInstance()
+                    .setState(state)
+                    .setMachineCoord(machineCoord)
+                    .setWorkCoord(workCoord)
+                    .setFeedSpeed(feedSpeed)
+                    .setFeedSpeedUnits(feedSpeedUnits)
+                    .setSpindleSpeed(spindleSpeed)
+                    .setOverrides(overrides)
+                    .setWorkCoordinateOffset(workCoordinateOffset)
+                    .setPins(enabledPins)
+                    .setStates(accessoryStates)
+                    .build();
         }
 
         return lastControllerStatus;
@@ -247,7 +278,7 @@ public class TinyGUtils {
     private static ControllerState getState(int state) {
         switch (state) {
             case 0: // Machine is initializing
-                return ControllerState.UNKNOWN;
+                return ControllerState.CONNECTING;
             case 1: // Machine is ready for use
                 return ControllerState.IDLE;
             case 2: // Machine is in alarm state
@@ -279,11 +310,6 @@ public class TinyGUtils {
         }
     }
 
-    private static String getStateAsString(int state) {
-        ControllerState controllerState = getState(state);
-        return controllerState.name();
-    }
-
     /**
      * Generates a command for resetting the coordinates for the current coordinate system to zero.
      *
@@ -293,7 +319,8 @@ public class TinyGUtils {
      */
     public static String generateResetCoordinatesToZeroCommand(ControllerStatus controllerStatus, GcodeState gcodeState) {
         int offsetCode = WorkCoordinateSystem.fromGCode(gcodeState.offset).getPValue();
-        Position machineCoord = controllerStatus.getMachineCoord();
+        UnitUtils.Units currentUnits = gcodeState.getUnits();
+        Position machineCoord = controllerStatus.getMachineCoord().getPositionIn(currentUnits);
         return "G10 L2 P" + offsetCode +
                 " X" + Utils.formatter.format(machineCoord.get(Axis.X)) +
                 " Y" + Utils.formatter.format(machineCoord.get(Axis.Y)) +
@@ -310,11 +337,11 @@ public class TinyGUtils {
      */
     public static String generateSetWorkPositionCommand(ControllerStatus controllerStatus, GcodeState gcodeState, PartialPosition positions) {
         int offsetCode = WorkCoordinateSystem.fromGCode(gcodeState.offset).getPValue();
-        Position machineCoord = controllerStatus.getMachineCoord();
+        UnitUtils.Units currentUnits = gcodeState.getUnits();
+        Position machineCoord = controllerStatus.getMachineCoord().getPositionIn(currentUnits);
 
-
-        PartialPosition.Builder offsets = new PartialPosition.Builder();
-        for (Map.Entry<Axis, Double> position : positions.getAll().entrySet()) {
+        PartialPosition.Builder offsets = PartialPosition.builder(currentUnits);
+        for (Map.Entry<Axis, Double> position : positions.getPositionIn(currentUnits).getAll().entrySet()) {
             double axisOffset = -(position.getValue() - machineCoord.get(position.getKey()));
             offsets.setValue(position.getKey(), axisOffset);
 
@@ -401,78 +428,79 @@ public class TinyGUtils {
     /**
      * Creates an override gcode command based on the current override state.
      *
+     * @param commandCreator
      * @param currentOverrides the current override state
      * @param command          the command which we want to build a gcode command from
      * @return the gcode command
      */
-    public static Optional<GcodeCommand> createOverrideCommand(ControllerStatus.OverridePercents currentOverrides, Overrides command) {
+    public static Optional<GcodeCommand> createOverrideCommand(ICommandCreator commandCreator, OverridePercents currentOverrides, Overrides command) {
         double feedOverride = OVERRIDE_DEFAULT;
         double spindleOverride = OVERRIDE_DEFAULT;
         if (currentOverrides != null) {
-            feedOverride = ((double) currentOverrides.feed) / 100.0;
-            spindleOverride = ((double) currentOverrides.spindle) / 100.0;
+            feedOverride = ((double) currentOverrides.feed()) / 100.0;
+            spindleOverride = ((double) currentOverrides.spindle()) / 100.0;
         }
 
-        Optional<GcodeCommand> result = Optional.empty();
+        GcodeCommand result = null;
         switch (command) {
             case CMD_FEED_OVR_COARSE_MINUS:
                 if (feedOverride > OVERRIDE_MIN) {
-                    result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MFO + ":" + Utils.formatter.format(feedOverride - 0.10) + "}"));
+                    result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MFO + ":" + Utils.formatter.format(feedOverride - 0.10) + "}");
                 }
                 break;
             case CMD_FEED_OVR_COARSE_PLUS:
                 if (feedOverride < OVERRIDE_MAX) {
-                    result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MFO + ":" + Utils.formatter.format(feedOverride + 0.10) + "}"));
+                    result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MFO + ":" + Utils.formatter.format(feedOverride + 0.10) + "}");
                 }
                 break;
             case CMD_FEED_OVR_FINE_MINUS:
                 if (feedOverride > OVERRIDE_MIN) {
-                    result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MFO + ":" + Utils.formatter.format(feedOverride - 0.05) + "}"));
+                    result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MFO + ":" + Utils.formatter.format(feedOverride - 0.05) + "}");
                 }
                 break;
             case CMD_FEED_OVR_FINE_PLUS:
                 if (feedOverride < OVERRIDE_MAX) {
-                    result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MFO + ":" + Utils.formatter.format(feedOverride + 0.05) + "}"));
+                    result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MFO + ":" + Utils.formatter.format(feedOverride + 0.05) + "}");
                 }
                 break;
             case CMD_FEED_OVR_RESET:
-                result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MFO + ":" + Utils.formatter.format(OVERRIDE_DEFAULT) + "}"));
+                result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MFO + ":" + Utils.formatter.format(OVERRIDE_DEFAULT) + "}");
                 break;
 
             case CMD_SPINDLE_OVR_COARSE_MINUS:
                 if (spindleOverride > OVERRIDE_MIN) {
-                    result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_SSO + ":" + Utils.formatter.format(spindleOverride - 0.10) + "}"));
+                    result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_SSO + ":" + Utils.formatter.format(spindleOverride - 0.10) + "}");
                 }
                 break;
             case CMD_SPINDLE_OVR_COARSE_PLUS:
                 if (spindleOverride < OVERRIDE_MAX) {
-                    result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_SSO + ":" + Utils.formatter.format(spindleOverride + 0.10) + "}"));
+                    result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_SSO + ":" + Utils.formatter.format(spindleOverride + 0.10) + "}");
                 }
                 break;
             case CMD_SPINDLE_OVR_FINE_MINUS:
                 if (spindleOverride > OVERRIDE_MIN) {
-                    result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_SSO + ":" + Utils.formatter.format(spindleOverride - 0.05) + "}"));
+                    result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_SSO + ":" + Utils.formatter.format(spindleOverride - 0.05) + "}");
                 }
                 break;
             case CMD_SPINDLE_OVR_FINE_PLUS:
                 if (spindleOverride < OVERRIDE_MAX) {
-                    result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_SSO + ":" + Utils.formatter.format(spindleOverride + 0.05) + "}"));
+                    result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_SSO + ":" + Utils.formatter.format(spindleOverride + 0.05) + "}");
                 }
                 break;
             case CMD_SPINDLE_OVR_RESET:
-                result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_SSO + ":" + Utils.formatter.format(OVERRIDE_DEFAULT) + "}"));
+                result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_SSO + ":" + Utils.formatter.format(OVERRIDE_DEFAULT) + "}");
                 break;
             case CMD_RAPID_OVR_LOW:
-                result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MTO + ":" + Utils.formatter.format(0.25) + "}"));
+                result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MTO + ":" + Utils.formatter.format(0.25) + "}");
                 break;
             case CMD_RAPID_OVR_MEDIUM:
-                result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MTO + ":" + Utils.formatter.format(0.50) + "}"));
+                result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MTO + ":" + Utils.formatter.format(0.50) + "}");
                 break;
             case CMD_RAPID_OVR_RESET:
-                result = Optional.of(new GcodeCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MTO + ":" + Utils.formatter.format(1.00) + "}"));
+                result = commandCreator.createCommand("{" + TinyGUtils.FIELD_STATUS_REPORT_MTO + ":" + Utils.formatter.format(1.00) + "}");
                 break;
             default:
         }
-        return result;
+        return Optional.ofNullable(result);
     }
 }

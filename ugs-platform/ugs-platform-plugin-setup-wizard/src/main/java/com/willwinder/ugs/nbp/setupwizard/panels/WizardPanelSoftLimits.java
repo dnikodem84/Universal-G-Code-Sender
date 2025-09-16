@@ -1,5 +1,5 @@
 /*
-    Copyright 2018 Will Winder
+    Copyright 2018-2020 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -24,12 +24,13 @@ import com.willwinder.ugs.nbp.setupwizard.WizardUtils;
 import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettings;
 import com.willwinder.universalgcodesender.i18n.Localization;
-import com.willwinder.universalgcodesender.listeners.ControllerStateListener;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.Axis;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.Position;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStatusEvent;
+import com.willwinder.universalgcodesender.model.events.FirmwareSettingEvent;
 import com.willwinder.universalgcodesender.utils.ThreadHelper;
 import net.miginfocom.swing.MigLayout;
 import org.openide.DialogDisplayer;
@@ -57,7 +58,7 @@ import java.text.ParseException;
  *
  * @author Joacim Breiler
  */
-public class WizardPanelSoftLimits extends AbstractWizardPanel implements UGSEventListener, ControllerStateListener {
+public class WizardPanelSoftLimits extends AbstractWizardPanel implements UGSEventListener {
 
     private NavigationButtons navigationButtons;
 
@@ -149,7 +150,7 @@ public class WizardPanelSoftLimits extends AbstractWizardPanel implements UGSEve
                 Localization.getString("platform.plugin.setupwizard.soft-limits.instructions") +
                 "</p></body></html>");
 
-        navigationButtons = new NavigationButtons(getBackend(), 1.0, (int)getBackend().getSettings().getJogFeedRate());
+        navigationButtons = new NavigationButtons(getBackend(), 1.0, (int) getBackend().getSettings().getJogFeedRate());
 
         checkboxEnableSoftLimits = new JCheckBox("Enable soft limits");
         checkboxEnableSoftLimits.addActionListener(event -> onSoftLimitsClicked());
@@ -255,7 +256,6 @@ public class WizardPanelSoftLimits extends AbstractWizardPanel implements UGSEve
     @Override
     public void initialize() {
         getBackend().addUGSEventListener(this);
-        getBackend().addControllerStateListener(this);
         refeshControls();
 
         try {
@@ -272,6 +272,7 @@ public class WizardPanelSoftLimits extends AbstractWizardPanel implements UGSEve
     private void refeshControls() {
         ThreadHelper.invokeLater(() -> {
             try {
+                checkboxEnableSoftLimits.setVisible(false);
                 if (getBackend().getController() != null &&
                         getBackend().getController().getFirmwareSettings().isHardLimitsEnabled() &&
                         getBackend().getController().getFirmwareSettings().isHomingEnabled() &&
@@ -323,29 +324,23 @@ public class WizardPanelSoftLimits extends AbstractWizardPanel implements UGSEve
     @Override
     public void destroy() {
         getBackend().removeUGSEventListener(this);
-        getBackend().removeControllerStateListener(this);
     }
 
     @Override
     public void UGSEvent(UGSEvent event) {
 
-        if (getBackend().getController() != null &&
-                getBackend().isConnected() &&
-                (event.isControllerStatusEvent() || event.isStateChangeEvent())) {
+        if (getBackend().getController() != null && getBackend().isConnected() && event instanceof ControllerStatusEvent) {
             WizardUtils.killAlarm(getBackend());
-
-            if (event.isControllerStatusEvent()) {
-                Position machineCoord = event.getControllerStatus().getMachineCoord();
-                labelPositionX.setText(positionDecimalFormat.format(machineCoord.get(Axis.X)) + " mm");
-                labelPositionY.setText(positionDecimalFormat.format(machineCoord.get(Axis.Y)) + " mm");
-                labelPositionZ.setText(positionDecimalFormat.format(machineCoord.get(Axis.Z)) + " mm");
-            }
-        } else if (event.isFirmwareSettingEvent()) {
+            Position machineCoord = ((ControllerStatusEvent) event).getStatus().getMachineCoord();
+            labelPositionX.setText(positionDecimalFormat.format(machineCoord.get(Axis.X)) + " mm");
+            labelPositionY.setText(positionDecimalFormat.format(machineCoord.get(Axis.Y)) + " mm");
+            labelPositionZ.setText(positionDecimalFormat.format(machineCoord.get(Axis.Z)) + " mm");
+        } else if (event instanceof FirmwareSettingEvent) {
             refeshControls();
         }
 
-        if (event.isControllerStatusEvent()) {
-            navigationButtons.refresh(event.getControllerStatus().getMachineCoord());
+        if (event instanceof ControllerStatusEvent) {
+            navigationButtons.refresh(((ControllerStatusEvent) event).getStatus().getMachineCoord());
         }
     }
 

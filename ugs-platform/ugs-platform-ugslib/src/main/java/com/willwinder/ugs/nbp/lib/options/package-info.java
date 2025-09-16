@@ -1,5 +1,5 @@
 /*
-    Copywrite 2016 Will Winder
+    Copyright 2016 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -20,7 +20,7 @@
 @OptionsPanelController.ContainerRegistration(
         id = "UGS",
         categoryName = "UGS",
-        iconBase = "com/willwinder/ugs/nbp/lib/options/CNC.png",
+        iconBase = "com/willwinder/ugs/nbp/lib/options/CNC.svg",
         keywords = "UGS",
         keywordsCategory = "UGS")
 package com.willwinder.ugs.nbp.lib.options;

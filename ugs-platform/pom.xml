@@ -4,35 +4,41 @@
     <parent>
         <groupId>com.willwinder.universalgcodesender</groupId>
         <artifactId>ugs-parent</artifactId>
-        <version>2.0-SNAPSHOT</version>
+        <version>${revision}${changelist}</version>
     </parent>
 
     <groupId>com.willwinder</groupId>
     <artifactId>ugs-platform-parent</artifactId>
-    <version>2.0-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>ugs-platform-parent</name>
 
     <properties>
       <maven.build.timestamp.format>yyyy.MM.dd.HH.mm</maven.build.timestamp.format>
-      <netbeans.version>RELEASE110</netbeans.version>
-      <ugs.app.title>Universal Gcode Platform ${project.version}</ugs.app.title>
-      <ugs.appbundle.name>Universal Gcode Platform</ugs.appbundle.name>
-
+      <ugs.app.title>Universal Gcode Sender ${project.version}</ugs.app.title>
+      <ugs.appbundle.name>Universal Gcode Sender</ugs.appbundle.name>
+      <parsedVersion.majorVersion>2</parsedVersion.majorVersion>
+      <parsedVersion.minorVersion>0</parsedVersion.minorVersion>
+      <parsedVersion.incrementalVersion>0</parsedVersion.incrementalVersion>
       <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
        <!-- Modules specification version, overrides project version -->
        <!-- Adding timestamp for nightly autoupdates -->
-       <!--
-            -->
       <ugs.modules.specification.version>
         ${parsedVersion.majorVersion}.${parsedVersion.minorVersion}.${parsedVersion.incrementalVersion}.${maven.build.timestamp}
       </ugs.modules.specification.version>
 
       <!--==== JRE Bundle Properties ====-->
-      <ugs.bundle.java.mac.url>https://github.com/AdoptOpenJDK/openjdk12-binaries/releases/download/jdk-12.0.2%2B10.2/OpenJDK12U-jre_x64_mac_hotspot_12.0.2_10.tar.gz</ugs.bundle.java.mac.url>
-      <ugs.bundle.java.rpi.url>https://github.com/AdoptOpenJDK/openjdk12-binaries/releases/download/jdk-12.0.2%2B10/OpenJDK12U-jdk_arm_linux_hotspot_12.0.2_10.tar.gz</ugs.bundle.java.rpi.url>
+      <!-- JVMS can be found here: https://adoptium.net/download/ -->
+      <ugs.bundle.java.mac.x64.url>https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.8.1%2B1/OpenJDK17U-jre_x64_mac_hotspot_17.0.8.1_1.tar.gz</ugs.bundle.java.mac.x64.url>
+      <ugs.bundle.java.mac.aarch64.url>https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.8.1%2B1/OpenJDK17U-jre_aarch64_mac_hotspot_17.0.8.1_1.tar.gz</ugs.bundle.java.mac.aarch64.url>
+
+      <ugs.bundle.java.win32.url>https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.8.1%2B1/OpenJDK17U-jre_x86-32_windows_hotspot_17.0.8.1_1.zip</ugs.bundle.java.win32.url>
+      <ugs.bundle.java.win64.url>https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.8.1%2B1/OpenJDK17U-jre_x64_windows_hotspot_17.0.8.1_1.zip</ugs.bundle.java.win64.url>
+
+      <ugs.bundle.java.linux.x64.url>https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.8.1%2B1/OpenJDK17U-jre_x64_linux_hotspot_17.0.8.1_1.tar.gz</ugs.bundle.java.linux.x64.url>
+      <ugs.bundle.java.linux.arm.url>https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.8.1%2B1/OpenJDK17U-jre_arm_linux_hotspot_17.0.8.1_1.tar.gz</ugs.bundle.java.linux.arm.url>
+      <ugs.bundle.java.linux.aarch64.url>https://github.com/adoptium/temurin17-binaries/releases/download/jdk-17.0.15%2B6/OpenJDK17U-jre_aarch64_linux_hotspot_17.0.15_6.tar.gz</ugs.bundle.java.linux.aarch64.url>
 
       <!-- Mac OS X signing identity - must match with a verified Apple developer certificate in the keychain -->
       <ugs.codesign.identity>Developer ID Application</ugs.codesign.identity>
@@ -42,15 +48,9 @@
       <all.clusters>${project.build.directory}/${brandingToken}</all.clusters>
 
       <!--==== Plugin Versions ====-->
-      <ugs.maven-surefire-plugin.version>2.20</ugs.maven-surefire-plugin.version>
-
-      <ugs.maven-jar-plugin.version>3.0.2</ugs.maven-jar-plugin.version>
-
       <ugs.maven-antrun-plugin.version>1.8</ugs.maven-antrun-plugin.version>
 
-      <ugs.nbm-maven-plugin.version>4.2</ugs.nbm-maven-plugin.version>
-
-      <ugs.maven-resources-plugin.version>3.0.2</ugs.maven-resources-plugin.version>
+      <ugs.nbm-maven-plugin.version>4.8</ugs.nbm-maven-plugin.version>
     </properties>
 
     <build>
@@ -93,21 +93,23 @@
         </pluginManagement>
 
         <plugins>
-          <!-- Copy and apply filtering on manifest.mf file -->                                                                                   
+          <!-- Copy and apply filtering on manifest.mf file -->
           <plugin>
-            <artifactId>maven-resources-plugin</artifactId>                                                                                               
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-resources-plugin</artifactId>
+            <version>${ugs.maven-resources-plugin.version}</version>
             <executions>
-              <execution>                                                                                                              
+              <execution>
                 <id>generate-modules-xml</id>
-                <phase>generate-resources</phase>    
+                <phase>generate-resources</phase>
                 <goals>
-                  <goal>copy-resources</goal>   
+                  <goal>copy-resources</goal>
                 </goals>
-                <configuration>  
+                <configuration>
                   <outputDirectory>${basedir}/target/</outputDirectory>
-                  <resources>      
+                  <resources>
                     <resource>
-                      <directory>src/main/nbm</directory>   
+                      <directory>src/main/nbm</directory>
                       <includes>
                           <include>manifest.mf</include>
                       </includes>
@@ -122,7 +124,7 @@
           <plugin>
             <groupId>org.codehaus.mojo</groupId>
             <artifactId>build-helper-maven-plugin</artifactId>
-            <version>1.8</version>
+            <version>3.2.0</version>
             <executions>
               <execution>
                 <id>parse-version</id>
@@ -132,7 +134,6 @@
               </execution>
             </executions>
           </plugin>
-
         </plugins>
     </build>
 
@@ -144,12 +145,18 @@
     <module>ugs-platform-visualizer</module>
     <module>ugs-platform-plugin-workflow</module>
     <module>ugs-platform-gcode-editor</module>
+    <module>ugs-platform-plugin-designer</module>
     <module>ugs-platform-surfacescanner</module>
     <module>ugs-platform-plugin-jog</module>
     <module>ugs-platform-plugin-setup-wizard</module>
     <module>ProbeModule</module>
-    <module>DowelModule</module>
     <module>GcodeTools</module>
     <module>ugs-platform-welcome-page</module>
+    <module>ugs-platform-plugin-joystick</module>
+    <module>ugs-platform-plugin-cloud-storage</module>
+    <module>ugs-platform-plugin-toolbox</module>
+    <module>ugs-platform-plugin-dro</module>
+    <module>ugs-platform-plugin-filebrowser</module>
+    <module>ugs-platform-plugin-console</module>
   </modules>
 </project>

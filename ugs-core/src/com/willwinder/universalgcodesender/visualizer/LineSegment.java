@@ -1,11 +1,5 @@
 /*
- * 
- *
- * Created on Jan 29, 2013
- */
-
-/*
-    Copywrite 2013 Noah Levy
+    Copyright 2013-2023 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -25,70 +19,54 @@
 
 package com.willwinder.universalgcodesender.visualizer;
 
-import javax.vecmath.Point3d;
- 
+import com.willwinder.universalgcodesender.model.Position;
+
+/**
+ * Segment of gcode by the start/end positions.
+ */
 public class LineSegment {
 
-    private int toolhead = 0; //DEFAULT TOOLHEAD ASSUMED TO BE 0!
-    private double speed;
-    private final Point3d first, second;
-    
+    private final Position first;
+    private final Position second;
+    private final int lineNumber;
     // Line properties
     private boolean isZMovement = false;
     private boolean isArc = false;
     private boolean isFastTraverse = false;
-    private final int lineNumber;
-    
-    public LineSegment (final Point3d a,final Point3d b, int num)
-    {
-        first = new Point3d(a);
-        second = new Point3d (b);
+    private boolean isRotation = false;
+    private double feedRate;
+    private double spindleSpeed;
+
+    public LineSegment(final Position a, final Position b, int num) {
+        first = new Position(a);
+        second = new Position(b);
         lineNumber = num;
     }
-    
+
     public int getLineNumber() {
         return lineNumber;
     }
-    
-    public Point3d[] getPointArray() {
-        return new Point3d[]{ first, second };
-    }
-    
-    public double[] getPoints()
-    {
-        return new double[]{first.x, first.y, first.z , second.x, second.y, second.z };
-    }
-    
-    public Point3d getStart() {
+
+    public Position getStart() {
         return this.first;
     }
 
-    public Point3d getEnd() {
+    public Position getEnd() {
         return this.second;
     }
 
-    public void setToolHead(int head) {
-        this.toolhead = head;
+    public double getFeedRate() {
+        return feedRate;
     }
-    
-    public int getToolhead()
-    {
-        return toolhead;
+
+    public void setFeedRate(double s) {
+        this.feedRate = s;
     }
-    
-    public void setSpeed(double s) {
-        this.speed = s;
-    }
-    
-    public double getSpeed()
-    {
-        return speed;
-    }
-    
+
     public void setIsZMovement(boolean isZ) {
         this.isZMovement = isZ;
     }
-    
+
     public boolean isZMovement() {
         return isZMovement;
     }
@@ -96,16 +74,32 @@ public class LineSegment {
     public void setIsArc(boolean isA) {
         this.isArc = isA;
     }
-    
+
     public boolean isArc() {
         return isArc;
     }
-    
+
     public void setIsFastTraverse(boolean isF) {
         this.isFastTraverse = isF;
     }
-    
+
     public boolean isFastTraverse() {
         return this.isFastTraverse;
+    }
+
+    public void setIsRotation(boolean isR) {
+        this.isRotation = isR;
+    }
+
+    public boolean isRotation() {
+        return this.isRotation;
+    }
+
+    public double getSpindleSpeed() {
+        return spindleSpeed;
+    }
+
+    public void setSpindleSpeed(double spindleSpeed) {
+        this.spindleSpeed = spindleSpeed;
     }
 }

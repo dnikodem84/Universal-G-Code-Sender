@@ -18,12 +18,11 @@
 */
 package com.willwinder.ugs.nbp.editor.lexer;
 
+import static org.apache.commons.lang3.CharUtils.isAsciiNumeric;
 import org.netbeans.api.lexer.Token;
 import org.netbeans.spi.lexer.Lexer;
 import org.netbeans.spi.lexer.LexerInput;
 import org.netbeans.spi.lexer.LexerRestartInfo;
-
-import static org.apache.commons.lang3.CharUtils.isAsciiNumeric;
 
 /**
  * A basic lexer for parsing a gcode file to tokens for describing the gcode elements.
@@ -31,8 +30,8 @@ import static org.apache.commons.lang3.CharUtils.isAsciiNumeric;
  * @author Joacim Breiler
  */
 public class GcodeLexer implements Lexer<GcodeTokenId> {
-    private LexerRestartInfo<GcodeTokenId> info;
-    private LexerInput input;
+    private final LexerRestartInfo<GcodeTokenId> info;
+    private final LexerInput input;
 
     public GcodeLexer(LexerRestartInfo<GcodeTokenId> info) {
         this.info = info;
@@ -87,6 +86,9 @@ public class GcodeLexer implements Lexer<GcodeTokenId> {
             case 'O':
                 return parseCommand(GcodeTokenId.PROGRAM);
 
+            case '$':
+                return parseSystemCommand(GcodeTokenId.SYSTEM);
+
             case 'G':
                 return parseCommand(GcodeTokenId.MOVEMENT);
 
@@ -122,12 +124,12 @@ public class GcodeLexer implements Lexer<GcodeTokenId> {
             input.backup(1);
             return createToken(GcodeTokenId.WHITESPACE);
         } else {
-            input.read();
-            return createToken(GcodeTokenId.ERROR);
+            return parseUnknownWord();
         }
     }
 
     private Token<GcodeTokenId> parseCommentSection() {
+        int nestedBlocks = 0;
         int ch;
         while (true) {
             ch = input.read();
@@ -135,6 +137,10 @@ public class GcodeLexer implements Lexer<GcodeTokenId> {
             if (ch == LexerInput.EOF || ch == '\r' || ch == '\n') {
                 input.backup(1);
                 return createToken(GcodeTokenId.ERROR);
+            } else if (ch == '(') {
+                nestedBlocks++;
+            } else if (ch == ')' && nestedBlocks > 0) {
+                nestedBlocks--;
             } else if (ch == ')') {
                 break;
             }
@@ -160,10 +166,11 @@ public class GcodeLexer implements Lexer<GcodeTokenId> {
         int minusCount = 0;
         int commaCount = 0;
         int numberCount = 0;
+        int plusCount = 0;
 
         while (true) {
             char character = (char) input.read();
-            if (character == ' ' && length == 0) {
+            if ((character == ' ' || character == '\t') && numberCount == 0 && minusCount == 0 && commaCount == 0) {
                 // It's allowed to have a leading space after parameter name
             } else if (!isNumeric(character)) {
                 input.backup(1);
@@ -172,6 +179,8 @@ public class GcodeLexer implements Lexer<GcodeTokenId> {
                 commaCount++;
             } else if (character == '-') {
                 minusCount++;
+            } else if (character == '+') {
+                plusCount++;
             }
 
             if (isNumeric(character)) {
@@ -181,12 +190,21 @@ public class GcodeLexer implements Lexer<GcodeTokenId> {
             length++;
         }
 
-        if (length == 0 || minusCount > 1 || commaCount > 1 || numberCount == 0) {
-            return createToken(GcodeTokenId.ERROR);
+        if (length == 0 || minusCount > 1 || commaCount > 1 || plusCount > 1 || numberCount == 0) {
+            return parseUnknownWord();
         }
 
         return createToken(tokenId);
     }
+
+    private Token<GcodeTokenId> parseUnknownWord() {
+        int character = input.read();
+        while (character != LexerInput.EOF && !Character.isWhitespace((char) character)) {
+            character = input.read();
+        }
+        input.backup(1);
+        return createToken(GcodeTokenId.ERROR);
+    };
 
     /**
      * Returns if the character is a part of a numeric string. That includes minus and commas.
@@ -195,7 +213,7 @@ public class GcodeLexer implements Lexer<GcodeTokenId> {
      * @return true if the character is a part of a numeric field.
      */
     private boolean isNumeric(char character) {
-        return isAsciiNumeric(character) || character == '-' || character == '.' || character == ',';
+        return isAsciiNumeric(character) || character == '-' || character == '.' || character == ',' || character == '+';
     }
 
     private Token<GcodeTokenId> parseCommand(GcodeTokenId tokenId) {
@@ -220,6 +238,32 @@ public class GcodeLexer implements Lexer<GcodeTokenId> {
 
         return createToken(tokenId);
     }
+
+    private Token<GcodeTokenId> parseSystemCommand(GcodeTokenId gcodeTokenId) {
+        int equalCount = 0;
+        while (true) {
+            char character = (char) input.read();
+            if (Character.isWhitespace(character)) {
+                input.backup(1);
+                break;
+            }
+
+            if (character == '=') {
+                equalCount++;
+            }
+
+            if(character == (char) LexerInput.EOF) {
+                break;
+            }
+        }
+
+        if (equalCount > 1) {
+            return createToken(GcodeTokenId.ERROR);
+        }
+
+        return createToken(gcodeTokenId);
+    }
+
 
     @Override
     public Object state() {

@@ -18,10 +18,9 @@
  */
 package com.willwinder.universalgcodesender.utils;
 
-import com.willwinder.universalgcodesender.AbstractController;
-
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -37,13 +36,24 @@ import java.util.logging.Logger;
  * @author Joacim Breiler
  */
 public class ThreadHelper {
-    private static final Logger logger = Logger.getLogger(AbstractController.class.getName());
-    private static final int THREAD_POOL_SIZE = 1024;
+    private static final Logger logger = Logger.getLogger(ThreadHelper.class.getName());
+    private static final int THREAD_POOL_SIZE = 10;
 
     private static final ScheduledExecutorService scheduledExecutor = Executors.newScheduledThreadPool(THREAD_POOL_SIZE);
 
-    static public void invokeLater(Runnable r) {
-        scheduledExecutor.submit(r);
+    static public Future<?> invokeLater(Runnable r) {
+        return scheduledExecutor.submit(r);
+    }
+
+    /**
+     * Schedules a timer that will be executed at a fixed interval given in milliseconds
+     *
+     * @param command the command to execute
+     * @param interval the interval in milliseconds
+     * @return the future of the timer
+     */
+    static public ScheduledFuture<?> scheduleAtFixedRate(Runnable command, long interval) {
+        return scheduledExecutor.scheduleAtFixedRate(command, 0, interval, TimeUnit.MILLISECONDS);
     }
 
     /**
@@ -59,7 +69,7 @@ public class ThreadHelper {
      * // Will wait ten seconds and then throw a TimeoutException as true will never be equal to false
      * ThreadHelper.waitUntil(() -> { return true == false}, 10, TimeUnit.SECONDS);
      *
-     * // Will return almost immediatly
+     * // Will return almost immediately
      * ThreadHelper.waitUntil(() -> { return true == true}, 10, TimeUnit.SECONDS);
      * }</pre>
      *
@@ -78,7 +88,7 @@ public class ThreadHelper {
                 }
             }).get(timeout, units);
         } catch (InterruptedException | ExecutionException e) {
-            logger.log(Level.WARNING, "An error occured while waiting for the thread to finnish", e);
+            logger.log(Level.WARNING, "An error occurred while waiting for the thread to finnish", e);
         }
     }
 

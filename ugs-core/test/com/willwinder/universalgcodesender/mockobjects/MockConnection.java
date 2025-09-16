@@ -3,7 +3,7 @@
  */
 
 /*
-    Copywrite 2013-2015 Will Winder
+    Copyright 2013-2015 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -24,6 +24,9 @@
 package com.willwinder.universalgcodesender.mockobjects;
 
 import com.willwinder.universalgcodesender.connection.AbstractConnection;
+import com.willwinder.universalgcodesender.connection.DefaultConnectionDevice;
+import com.willwinder.universalgcodesender.connection.IConnectionDevice;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -34,7 +37,6 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- *
  * @author wwinder
  */
 public class MockConnection extends AbstractConnection {
@@ -45,14 +47,14 @@ public class MockConnection extends AbstractConnection {
         in = null;
         out = null;
     }
-    
+
     public MockConnection(final InputStream in, final OutputStream out) {
         this.in = in;
         this.out = out;
     }
-    
+
     public void sendResponse(String str) {
-        this.responseMessageHandler.notifyListeners(str);
+        this.connectionListenerManager.notifyListeners(str);
     }
 
     @Override
@@ -75,8 +77,8 @@ public class MockConnection extends AbstractConnection {
     }
 
     @Override
-    public List<String> getPortNames() {
-        return Arrays.asList("port");
+    public List<IConnectionDevice> getDevices() {
+        return Arrays.asList(new DefaultConnectionDevice("port"));
     }
 
     @Override

@@ -21,6 +21,7 @@ package com.willwinder.universalgcodesender.actions;
 import com.willwinder.universalgcodesender.i18n.Localization;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
 import com.willwinder.universalgcodesender.uielements.firmware.FirmwareSettingsDialog;
 
 import javax.swing.*;
@@ -42,14 +43,16 @@ public class ConfigureFirmwareAction extends AbstractAction {
     }
 
     private void onEvent(UGSEvent event) {
-        if (event != null && event.isStateChangeEvent()) {
+        if (event instanceof ControllerStateEvent) {
             EventQueue.invokeLater(() ->
                     setEnabled(canConfigureFirmware()));
         }
     }
 
     private boolean canConfigureFirmware() {
-        return this.backend.isConnected() && this.backend.isIdle();
+        return backend.isConnected() &&
+                backend.isIdle() &&
+                backend.getController().getCapabilities().hasFirmwareSettings();
     }
 
     @Override

@@ -50,7 +50,7 @@ public class SettingsTest {
         assertEquals("mm", target.getPreferredUnits().abbreviation);
         assertNotNull(target.getFileStats());
         assertEquals("GRBL", target.getFirmwareVersion());
-        assertEquals(Double.valueOf(10.0), Double.valueOf(target.getJogFeedRate()));
+        assertEquals(Double.valueOf(100.0), Double.valueOf(target.getJogFeedRate()));
         assertEquals("en_US", target.getLanguage());
         assertNotNull(target.getMainWindowSettings());
         assertFalse(target.isManualModeEnabled());
@@ -66,8 +66,9 @@ public class SettingsTest {
         assertTrue(target.useZStepSize());
         assertFalse(target.isVerboseOutputEnabled());
         assertNotNull(target.getVisualizerWindowSettings());
-        assertEquals(Double.valueOf(1), Double.valueOf(target.getzJogStepSize()));
+        assertEquals(Double.valueOf(1), Double.valueOf(target.getZJogStepSize()));
         assertFalse(target.isAutoStartPendant());
+        assertFalse(target.isShowMachinePosition());
     }
 
     @Test
@@ -123,10 +124,10 @@ public class SettingsTest {
       Assertions.assertThat(target.getRecentFiles())
               .hasSize(HISTORY_SIZE)
               .doesNotContain(path + "2"+File.separator+"file.gcode")
-              .startsWith(path + "21"+File.separator+"file.gcode", path + "1"+File.separator+"file.gcode");
+              .startsWith(path + "11"+File.separator+"file.gcode", path + "1"+File.separator+"file.gcode");
       Assertions.assertThat(target.getRecentDirectories())
               .hasSize(HISTORY_SIZE)
               .doesNotContain(path + "2")
-              .startsWith(path + "21", path + "1");
+              .startsWith(path + "11", path + "1");
     }
 }

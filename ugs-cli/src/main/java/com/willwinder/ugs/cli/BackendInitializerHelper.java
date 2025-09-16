@@ -19,15 +19,18 @@
 package com.willwinder.ugs.cli;
 
 import com.willwinder.universalgcodesender.connection.ConnectionFactory;
-import com.willwinder.universalgcodesender.listeners.UGSEventListener;
+import com.willwinder.universalgcodesender.connection.IConnectionDevice;
+import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.GUIBackend;
-import com.willwinder.universalgcodesender.model.UGSEvent;
 import com.willwinder.universalgcodesender.utils.Settings;
 import com.willwinder.universalgcodesender.utils.SettingsFactory;
+import com.willwinder.universalgcodesender.utils.ThreadHelper;
 import org.apache.commons.lang3.StringUtils;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 /**
  * Helper for initializing the backend. It will attempt to connect to controller using the given
@@ -35,7 +38,7 @@ import java.util.List;
  *
  * @author Joacim Breiler
  */
-public class BackendInitializerHelper implements UGSEventListener {
+public class BackendInitializerHelper {
 
     private static BackendInitializerHelper instance;
 
@@ -63,40 +66,41 @@ public class BackendInitializerHelper implements UGSEventListener {
 
         BackendAPI backend = new GUIBackend();
         try {
-            backend.addUGSEventListener(this);
             backend.applySettings(backendSettings);
             backend.getSettings().setFirmwareVersion(firmware);
 
             // Only connect if port is available
             Settings settings = SettingsFactory.loadSettings();
-            List<String> portNames = ConnectionFactory.getPortNames(settings.getConnectionDriver());
-            if(portNames.contains(port)) {
+            List<String> portNames = ConnectionFactory.getDevices(settings.getConnectionDriver()).stream()
+                    .map(IConnectionDevice::getAddress).toList();
+            if (portNames.contains(port)) {
                 backend.connect(firmware, port, baudRate);
             }
 
-            // TODO Wait until controller is finnished and in state IDLE or ALARM
-            Thread.sleep(3000);
-
-            if(backend.isConnected()) {
-                System.out.println("Connected to \"" + backend.getController().getFirmwareVersion() + "\" on " + port + " baud " + baudRate);
+            // If we want to send a file we must wait for the controller to be connected
+            if (configuration.hasOption(OptionEnum.FILE) || configuration.hasOption(OptionEnum.HOME)) {
+                waitForMachineToBeIdle(port, baudRate, backend);
             }
         } catch (Exception e) {
             System.err.println("Couldn't connect to controller with firmware \"" + firmware + "\" on " + port + " baud " + baudRate);
 
             if (StringUtils.isNotEmpty(e.getMessage())) {
                 System.err.println(e.getMessage());
-            } else {
-                e.printStackTrace();
             }
-        } finally {
-            backend.removeUGSEventListener(this);
+            System.exit(-1);
         }
 
         return backend;
     }
 
-    @Override
-    public void UGSEvent(UGSEvent evt) {
-        // TODO handle controller status events
+    private static void waitForMachineToBeIdle(String port, int baudRate, BackendAPI backend) throws TimeoutException, InterruptedException {
+        ThreadHelper.waitUntil(() -> backend.getControllerState() == ControllerState.IDLE || backend.getControllerState() == ControllerState.ALARM, 8000, TimeUnit.MILLISECONDS);
+        Thread.sleep(1000);
+
+        if (backend.isConnected()) {
+            System.out.println("Connected to \"" + backend.getController().getFirmwareVersion() + "\" on " + port + " baud " + baudRate);
+        } else {
+            throw new RuntimeException();
+        }
     }
 }

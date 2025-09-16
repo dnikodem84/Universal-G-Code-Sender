@@ -1,11 +1,5 @@
-/**
- * Draws a vertical line along the Z axis at the (X,Y) coordinate where the
- * mouse is considered to be.
- * 
- * Ray - Plane intersection: http://stackoverflow.com/a/21114992/204023
- */
 /*
-    Copyright 2016-2017 Will Winder
+    Copyright 2016-2024 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -24,28 +18,32 @@
  */
 package com.willwinder.ugs.nbm.visualizer.renderables;
 
+import com.jogamp.opengl.GL;
 import com.jogamp.opengl.GL2;
 import com.jogamp.opengl.GLAutoDrawable;
 import com.jogamp.opengl.glu.GLU;
 import com.jogamp.opengl.glu.GLUquadric;
 import com.willwinder.ugs.nbm.visualizer.options.VisualizerOptions;
+import static com.willwinder.ugs.nbm.visualizer.options.VisualizerOptions.VISUALIZER_OPTION_MOUSE_OVER;
 import com.willwinder.ugs.nbm.visualizer.shared.Renderable;
+import com.willwinder.universalgcodesender.model.Position;
+
 import java.awt.Color;
-import java.util.logging.Logger;
-import javax.vecmath.Point3d;
 
 /**
+ * Draws a vertical line along the Z axis at the (X,Y) coordinate where the
+ * mouse is considered to be.
  *
+ * Ray - Plane intersection: http://stackoverflow.com/a/21114992/204023
  * @author wwinder
  */
 public class MouseOver extends Renderable {
-    private static final Logger logger = Logger.getLogger(MouseOver.class.getName());
 
     private static final GLU GLU = new GLU();
     private static GLUquadric GQ;
 
     public MouseOver(String title) {
-        super(8, title);
+        super(5, title, VISUALIZER_OPTION_MOUSE_OVER);
     }
 
     @Override
@@ -63,18 +61,14 @@ public class MouseOver extends Renderable {
         GQ = GLU.gluNewQuadric();
     }
 
-    @Override
-    public void reloadPreferences(VisualizerOptions vo) {
-    }
-
-    static private boolean inBounds(Point3d point, Point3d bottomLeft, Point3d topRight) {
+    static private boolean inBounds(Position point, Position bottomLeft, Position topRight) {
         if (point.x > topRight.x || point.x < bottomLeft.x) return false;
         if (point.y > topRight.y || point.y < bottomLeft.y) return false;
         return true;
     }
 
     @Override
-    public void draw(GLAutoDrawable drawable, boolean idle, Point3d machineCoord, Point3d workCoord, Point3d objectMin, Point3d objectMax, double scaleFactor, Point3d mouseWorldCoordinates, Point3d rotation) {
+    public void draw(GLAutoDrawable drawable, boolean idle, Position machineCoord, Position workCoord, Position objectMin, Position objectMax, double scaleFactor, Position mouseWorldCoordinates, Position rotation) {
         if (mouseWorldCoordinates == null) return;
 
         if (inBounds(mouseWorldCoordinates, objectMin, objectMax)) {
@@ -83,6 +77,8 @@ public class MouseOver extends Renderable {
             double scale = 1. / (scaleFactor * 2);
 
             gl.glPushMatrix();
+                gl.glEnable(GL.GL_DEPTH_TEST);
+
                 gl.glTranslated(mouseWorldCoordinates.x, mouseWorldCoordinates.y, 0.);
                 gl.glScaled(scale, scale, scale);
 

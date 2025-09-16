@@ -1,5 +1,5 @@
 /*
-    Copywrite 2016 Will Winder
+    Copyright 2016 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -22,6 +22,7 @@ import com.willwinder.universalgcodesender.i18n.Localization;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
 import net.miginfocom.swing.MigLayout;
 
 import javax.swing.JButton;
@@ -98,7 +99,7 @@ public class ActionButtonPanel extends JPanel implements UGSEventListener {
 
     @Override
     public void UGSEvent(UGSEvent evt) {
-        if (evt.isStateChangeEvent()) {
+        if (evt instanceof ControllerStateEvent) {
             updateControls();
         }
     }
@@ -109,7 +110,9 @@ public class ActionButtonPanel extends JPanel implements UGSEventListener {
 
     private void updateWorkflowControls(boolean enabled) {
         this.resetCoordinatesButton.setEnabled(enabled);
-        this.returnToZeroButton.setEnabled(enabled);
+
+        boolean hasReturnToZero = backend.isConnected() && backend.getController().getCapabilities().hasReturnToZero();
+        this.returnToZeroButton.setEnabled(enabled && hasReturnToZero);
 
         boolean hasHoming = backend.isConnected() && backend.getController().getCapabilities().hasHoming();
         this.performHomingCycleButton.setEnabled(enabled && hasHoming);

@@ -1,5 +1,5 @@
 /*
-    Copywrite 2013-2018 Will Winder
+    Copyright 2013-2018 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -66,7 +66,7 @@ public class UGSSettingsDialog extends JDialog {
         initComponents();
         setLocationRelativeTo(parent);
 
-        setDefaultCloseOperation(DO_NOTHING_ON_CLOSE);
+        setDefaultCloseOperation(DISPOSE_ON_CLOSE);
         saveChanges = false;
     }
     

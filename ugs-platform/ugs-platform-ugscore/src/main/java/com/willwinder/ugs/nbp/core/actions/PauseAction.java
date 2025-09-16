@@ -1,5 +1,5 @@
 /*
-    Copywrite 2015-2016 Will Winder
+    Copyright 2015-2016 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -20,6 +20,7 @@ package com.willwinder.ugs.nbp.core.actions;
 
 import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.ugs.nbp.lib.services.LocalizingService;
+import com.willwinder.universalgcodesender.actions.Action;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
@@ -33,12 +34,15 @@ import org.openide.util.ImageUtilities;
 import javax.swing.*;
 import java.awt.event.ActionEvent;
 
+@Action(
+        icon = PauseAction.ICON_BASE
+)
 @ActionID(
         category = LocalizingService.PauseCategory,
         id = LocalizingService.PauseActionId)
 @ActionRegistration(
         iconBase = PauseAction.ICON_BASE,
-        displayName = "resources.MessagesBundle#" + LocalizingService.PauseTitleKey,
+        displayName = "resources/MessagesBundle#" + LocalizingService.PauseTitleKey,
         lazy = false)
 @ActionReferences({
         @ActionReference(
@@ -50,8 +54,8 @@ import java.awt.event.ActionEvent;
 })
 public final class PauseAction extends AbstractAction implements UGSEventListener {
 
-    public static final String ICON_BASE = "resources/icons/pause.png";
-    private BackendAPI backend;
+    public static final String ICON_BASE = "resources/icons/pause.svg";
+    private final BackendAPI backend;
 
     public PauseAction() {
         this.backend = CentralLookup.getDefault().lookup(BackendAPI.class);

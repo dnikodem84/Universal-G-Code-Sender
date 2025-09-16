@@ -21,8 +21,11 @@ package com.willwinder.ugs.nbp.core.actions;
 
 import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.ugs.nbp.lib.services.LocalizingService;
+import com.willwinder.universalgcodesender.i18n.Localization;
+import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
 import com.willwinder.universalgcodesender.model.UGSEvent;
 import com.willwinder.universalgcodesender.utils.GUIHelpers;
 import org.openide.awt.ActionID;
@@ -32,25 +35,32 @@ import org.openide.awt.ActionRegistration;
 import org.openide.util.ImageUtilities;
 
 import javax.swing.*;
+import java.awt.EventQueue;
 import java.awt.event.ActionEvent;
 
+@com.willwinder.universalgcodesender.actions.Action(
+        icon = UnlockAction.ICON_BASE
+)
 @ActionID(
         category = LocalizingService.UnlockCategory,
         id = LocalizingService.UnlockActionId)
 @ActionRegistration(
         iconBase = UnlockAction.ICON_BASE,
-        displayName = "resources.MessagesBundle#" + LocalizingService.UnlockTitleKey,
+        displayName = "resources/MessagesBundle#" + LocalizingService.UnlockTitleKey,
         lazy = false)
 @ActionReferences({
+        @ActionReference(
+                path = "Toolbars/Machine Actions",
+                position = 981),
         @ActionReference(
                 path = LocalizingService.UnlockWindowPath,
                 position = 1020)
 })
 public final class UnlockAction extends AbstractAction implements UGSEventListener {
 
-    public static final String ICON_BASE = "resources/icons/lock.png";
+    public static final String ICON_BASE = "resources/icons/lock.svg";
 
-    private BackendAPI backend;
+    private final transient BackendAPI backend;
 
     public UnlockAction() {
         this.backend = CentralLookup.getDefault().lookup(BackendAPI.class);
@@ -60,19 +70,20 @@ public final class UnlockAction extends AbstractAction implements UGSEventListen
         putValue(SMALL_ICON, ImageUtilities.loadImageIcon(ICON_BASE, false));
         putValue("menuText", LocalizingService.UnlockTitle);
         putValue(NAME, LocalizingService.UnlockTitle);
+        putValue(Action.SHORT_DESCRIPTION, Localization.getString("platform.actions.unlock.tooltip"));
         setEnabled(isEnabled());
     }
 
     @Override
     public void UGSEvent(UGSEvent cse) {
-        if (cse.isStateChangeEvent()) {
-            java.awt.EventQueue.invokeLater(() -> setEnabled(isEnabled()));
+        if (cse instanceof ControllerStateEvent) {
+            EventQueue.invokeLater(() -> setEnabled(isEnabled()));
         }
     }
 
     @Override
     public boolean isEnabled() {
-        return backend.isIdle();
+        return backend.getControllerState() == ControllerState.ALARM;
     }
 
     @Override

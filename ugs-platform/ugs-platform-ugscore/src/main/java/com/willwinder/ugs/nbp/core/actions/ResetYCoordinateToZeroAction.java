@@ -1,6 +1,5 @@
 /*
-    Copyright 2018 Will Winder
-
+    Copyright 2018-2024 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -21,10 +20,12 @@ package com.willwinder.ugs.nbp.core.actions;
 
 import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.ugs.nbp.lib.services.LocalizingService;
+import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import static com.willwinder.universalgcodesender.model.Axis.Y;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
 import com.willwinder.universalgcodesender.utils.GUIHelpers;
 import org.openide.awt.ActionID;
 import org.openide.awt.ActionReference;
@@ -40,18 +41,19 @@ import java.awt.event.ActionEvent;
         id = LocalizingService.ResetYZeroActionId)
 @ActionRegistration(
         iconBase = ResetYCoordinateToZeroAction.ICON_BASE,
-        displayName = "resources.MessagesBundle#" + LocalizingService.ResetYZeroTitleKey,
+        displayName = "resources/MessagesBundle#" + LocalizingService.ResetYZeroTitleKey,
         lazy = false)
 @ActionReferences({
         @ActionReference(
                 path = LocalizingService.ResetYZeroWindowPath,
-                position = 1030)
+                position = 1035)
 })
 public final class ResetYCoordinateToZeroAction extends AbstractAction implements UGSEventListener {
 
-    public static final String ICON_BASE = "resources/icons/resetzero_y.png";
+    public static final String ICON_BASE = "resources/icons/resetzero.svg";
+    public static final String LARGE_ICON_PATH = "resources/icons/resetzero24.svg";
 
-    private BackendAPI backend;
+    private final BackendAPI backend;
 
     public ResetYCoordinateToZeroAction() {
         this.backend = CentralLookup.getDefault().lookup(BackendAPI.class);
@@ -59,21 +61,24 @@ public final class ResetYCoordinateToZeroAction extends AbstractAction implement
 
         putValue("iconBase", ICON_BASE);
         putValue(SMALL_ICON, ImageUtilities.loadImageIcon(ICON_BASE, false));
+        putValue(LARGE_ICON_KEY, ImageUtilities.loadImageIcon(LARGE_ICON_PATH, false));
         putValue("menuText", LocalizingService.ResetYZeroTitle);
         putValue(NAME, LocalizingService.ResetYZeroTitle);
+        putValue(SHORT_DESCRIPTION, LocalizingService.ResetYZeroTitle);
         setEnabled(isEnabled());
     }
 
     @Override
     public void UGSEvent(UGSEvent cse) {
-        if (cse.isStateChangeEvent()) {
+        if (cse instanceof ControllerStateEvent) {
             java.awt.EventQueue.invokeLater(() -> setEnabled(isEnabled()));
         }
     }
 
     @Override
     public boolean isEnabled() {
-        return backend.isIdle();
+        return backend.isIdle() &&
+                backend.getControllerState() == ControllerState.IDLE;
     }
 
     @Override

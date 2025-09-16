@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2017 Will Winder
+    Copyright 2016-2018 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -22,25 +22,34 @@ import com.willwinder.universalgcodesender.model.UnitUtils.Units;
 import org.apache.commons.lang3.builder.ToStringBuilder;
 
 import java.util.Objects;
-import javax.vecmath.Point3d;
-import javax.vecmath.Tuple3d;
 
-public class Position extends Point3d {
+public class Position extends CNCPoint {
 
-    public static final Position ZERO = new Position(0, 0, 0, Units.MM);
+    public static final Position ZERO = new Position(0, 0, 0, 0, 0, 0, Units.MM);
+    public static final Position INVALID = new Position(Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Double.NaN, Units.MM);
 
     private final Units units;
 
-    public Position() {
-        this.units = Units.UNKNOWN;
+    public Position(Units units) {
+        this.units = units;
     }
 
     public Position(Position other) {
-        this(other.x, other.y, other.z, other.units);
+        this(other.x, other.y, other.z, other.a, other.b, other.c, other.units);
+    }
+
+    public Position(double x, double y, double z) {
+        super(x, y, z, Double.NaN, Double.NaN, Double.NaN);
+        this.units = Units.UNKNOWN;
     }
 
     public Position(double x, double y, double z, Units units) {
-        super(x, y, z);
+        super(x, y, z, Double.NaN, Double.NaN, Double.NaN);
+        this.units = units;
+    }
+
+    public Position(double x, double y, double z, double a, double b, double c, Units units) {
+        super(x, y, z, a, b, c);
         this.units = units;
     }
 
@@ -53,9 +62,9 @@ public class Position extends Point3d {
     }
 
     @Override
-    public boolean equals(final Tuple3d o) {
+    public boolean equals(final CNCPoint o) {
         if (o instanceof Position) {
-            return super.equals(o) && units == ((Position)o).units;
+            return super.equals(o) && units == ((Position) o).units;
         }
         return super.equals(o);
     }
@@ -79,6 +88,7 @@ public class Position extends Point3d {
     public int hashCode() {
         int hash = 3;
         hash = 83 * hash + Objects.hashCode(this.units);
+        hash = 83 * hash + super.hashCode();
         return hash;
     }
 
@@ -88,7 +98,7 @@ public class Position extends Point3d {
 
     public Position getPositionIn(Units units) {
         double scale = UnitUtils.scaleUnits(this.units, units);
-        return new Position(x*scale, y*scale, z*scale, units);
+        return new Position(x * scale, y * scale, z * scale, a, b, c, units);
     }
 
     public double get(Axis axis) {
@@ -99,8 +109,88 @@ public class Position extends Point3d {
                 return getY();
             case Z:
                 return getZ();
+            case A:
+                return getA();
+            case B:
+                return getB();
+            case C:
+                return getC();
             default:
                 return 0;
         }
+    }
+
+    /**
+     * Determine if the motion between Positions is a Z plunge.
+     *
+     * @param next the Position to compare with the current object.
+     * @return True if it only requires a Z motion to reach next.
+     */
+    public boolean isZMotionTo(Position next) {
+        return !equals(this.z, next.z) &&
+                equals(this.x, next.x) &&
+                equals(this.y, next.y) &&
+                equals(this.a, next.a) &&
+                equals(this.b, next.b) &&
+                equals(this.c, next.c);
+    }
+
+    /**
+     * Determine if the motion between Positions contains a rotation.
+     *
+     * @param next the Position to compare with the current object.
+     * @return True if a rotation occurs
+     */
+    public boolean hasRotationTo(Position next) {
+        return !equals(this.a, next.a) || !equals(this.b, next.b) || equals(this.c, next.c);
+    }
+
+    /**
+     * Returns true if the position has any rotation
+     *
+     * @return true if the position contains rotations
+     */
+    public boolean hasRotation() {
+        return (a != 0 && !Double.isNaN(a)) ||
+                (b != 0 && !Double.isNaN(b)) ||
+                (c != 0 && !Double.isNaN(c));
+    }
+
+    public void set(Axis axis, double value) {
+        switch (axis) {
+            case X:
+                setX(value);
+                break;
+            case Y:
+                setY(value);
+                break;
+            case Z:
+                setZ(value);
+                break;
+            default:
+        }
+    }
+
+    /**
+     * Rotates this point around the center with the given angle in radians and returns a new position
+     *
+     * @param center  the XY position to rotate around
+     * @param radians the radians to rotate clock wise
+     * @return a new rotated position
+     */
+    public Position rotate(Position center, double radians) {
+        double cosA = Math.cos(radians);
+        double sinA = Math.sin(radians);
+
+        return new Position(
+                center.x + (cosA * (x - center.x) + sinA * (y - center.y)),
+                center.y + (-sinA * (x - center.x) + cosA * (y - center.y)),
+                z,
+                units);
+    }
+
+    public Position add(Position position) {
+        Position p = position.getPositionIn(units);
+        return new Position(x + p.x, y + p.y, z + p.z, a + p.a, b + p.b, c + p.c, units);
     }
 }

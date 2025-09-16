@@ -36,30 +36,32 @@ import java.io.File;
 import java.util.Optional;
 
 /**
- *
  * @author wwinder
  */
 public class ConnectionSettingsPanel extends AbstractUGSSettings {
     private final Checkbox verboseConsoleOutput = new Checkbox(
-                Localization.getString("mainWindow.swing.showVerboseOutputCheckBox"));
+            Localization.getString("mainWindow.swing.showVerboseOutputCheckBox"));
     private final Checkbox useZStepSize = new Checkbox(
-                Localization.getString("sender.step.separateZ"));
+            Localization.getString("sender.step.separateZ"));
     private final Checkbox singleStepMode = new Checkbox(
-                Localization.getString("sender.singlestep"));
+            Localization.getString("sender.singlestep"));
     private final Checkbox statusPollingEnabled = new Checkbox(
-                Localization.getString("sender.status"));
+            Localization.getString("sender.status"));
     private final Spinner statusPollRate = new Spinner(
-                Localization.getString("sender.status.rate"),
-                new SpinnerNumberModel(1, 1, null, 100));
+            Localization.getString("sender.status.rate"),
+            new SpinnerNumberModel(1, 1, null, 100));
+    private final Spinner safetyHeight = new Spinner(
+            Localization.getString("sender.safety-height"),
+            new SpinnerNumberModel(1, 0, null, 1));
+    private final Checkbox invertMouseZoom = new Checkbox(
+            Localization.getString("sender.invertMouseZoom"));
     private final Checkbox showNightlyWarning = new Checkbox(
-                Localization.getString("sender.nightly-warning"));
+            Localization.getString("sender.nightly-warning"));
     private final Checkbox autoStartPendant = new Checkbox(
             Localization.getString("sender.autostartpendant"));
+    private final JTextField pendantPort = new JTextField();
     private final JComboBox<Language> languageCombo = new JComboBox<>(AvailableLanguages.getAvailableLanguages().toArray(new Language[0]));
-    private final JComboBox<String> connectionDriver = new JComboBox<>(new String[]{
-            ConnectionDriver.JSSC.getPrettyName(),
-            ConnectionDriver.JSERIALCOMM.getPrettyName(),
-            ConnectionDriver.TCP.getPrettyName()});
+    private final JComboBox<String> connectionDriver = new JComboBox<>(ConnectionDriver.getPrettyNames());
     private final JTextField workspaceDirectory = new JTextField();
     private final JButton workspaceDirectoryBrowseButton = new JButton("Browse");
 
@@ -87,20 +89,17 @@ public class ConnectionSettingsPanel extends AbstractUGSSettings {
         settings.setVerboseOutputEnabled(verboseConsoleOutput.getValue());
         settings.setUseZStepSize(useZStepSize.getValue());
         settings.setSingleStepMode(singleStepMode.getValue());
+        settings.setSafetyHeight((int) safetyHeight.getValue());
         settings.setStatusUpdatesEnabled(statusPollingEnabled.getValue());
-        settings.setStatusUpdateRate((int)statusPollRate.getValue());
+        settings.setStatusUpdateRate((int) statusPollRate.getValue());
         //settings.setAutoConnectEnabled(autoConnect.getValue());
         settings.setShowNightlyWarning(showNightlyWarning.getValue());
         settings.setAutoStartPendant(autoStartPendant.getValue());
-        settings.setLanguage(((Language)languageCombo.getSelectedItem()).getLanguageCode());
-        if (connectionDriver.getSelectedItem().equals(ConnectionDriver.JSERIALCOMM.getPrettyName())) {
-            settings.setConnectionDriver(ConnectionDriver.JSERIALCOMM);
-        } else if (connectionDriver.getSelectedItem().equals(ConnectionDriver.TCP.getPrettyName())) {
-            settings.setConnectionDriver(ConnectionDriver.TCP);
-        } else {
-            settings.setConnectionDriver(ConnectionDriver.JSSC);
-        }
+        settings.setPendantPort(Integer.parseInt(pendantPort.getText()));
+        settings.setLanguage(((Language) languageCombo.getSelectedItem()).getLanguageCode());
+        settings.setConnectionDriver(ConnectionDriver.prettyNameToEnum(connectionDriver.getSelectedItem().toString()));
         settings.setWorkspaceDirectory(workspaceDirectory.getText());
+        settings.setInvertMouseZoom(invertMouseZoom.getValue());
         SettingsFactory.saveSettings(settings);
     }
 
@@ -131,11 +130,21 @@ public class ConnectionSettingsPanel extends AbstractUGSSettings {
         statusPollRate.setValue(s.getStatusUpdateRate());
         add(statusPollRate, "spanx, wrap");
 
+        safetyHeight.setValue((int) s.getSafetyHeight());
+        add(safetyHeight, "spanx, wrap");
+
+        invertMouseZoom.setSelected(s.isInvertMouseZoom());
+        add(invertMouseZoom, "spanx, wrap");
+
         showNightlyWarning.setSelected(s.isShowNightlyWarning());
         add(showNightlyWarning, "spanx, wrap");
 
         autoStartPendant.setSelected(s.isAutoStartPendant());
         add(autoStartPendant, "spanx, wrap");
+
+        pendantPort.setText(String.valueOf(s.getPendantPort()));
+        add(new JLabel(Localization.getString("settings.pendantPort")), "gapleft 56");
+        add(pendantPort, "grow, wrap");
 
         for (int i = 0; i < languageCombo.getItemCount(); i++) {
             Language l = languageCombo.getItemAt(i);
@@ -154,8 +163,8 @@ public class ConnectionSettingsPanel extends AbstractUGSSettings {
 
         workspaceDirectory.setText(settings.getWorkspaceDirectory());
         JPanel panel = new JPanel();
-        panel.setLayout(new MigLayout("insets 0", "fill"));
-        panel.add(workspaceDirectory, "gapright 0");
+        panel.setLayout(new MigLayout("insets 0, fill"));
+        panel.add(workspaceDirectory, "grow");
         panel.add(workspaceDirectoryBrowseButton);
         workspaceDirectoryBrowseButton.setAction(createBrowseDirectoryAction());
 
@@ -168,7 +177,7 @@ public class ConnectionSettingsPanel extends AbstractUGSSettings {
             @Override
             public void actionPerformed(ActionEvent e) {
                 File directory = new File(".");
-                if(StringUtils.isNotEmpty(workspaceDirectory.getText())) {
+                if (StringUtils.isNotEmpty(workspaceDirectory.getText())) {
                     directory = new File(workspaceDirectory.getText());
                 }
 

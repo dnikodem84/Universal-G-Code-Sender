@@ -20,9 +20,12 @@ package com.willwinder.ugs.nbp.core.actions;
 
 import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.ugs.nbp.lib.services.LocalizingService;
+import com.willwinder.universalgcodesender.actions.Action;
+import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
 import com.willwinder.universalgcodesender.utils.GUIHelpers;
 import com.willwinder.universalgcodesender.utils.Settings;
 import com.willwinder.universalgcodesender.utils.ThreadHelper;
@@ -44,12 +47,15 @@ import java.util.logging.Logger;
  *
  * @author wwinder
  */
+@Action(
+        icon = ConnectDisconnectAction.ICON_BASE_DISCONNECT
+)
 @ActionID(
         category = LocalizingService.ConnectDisconnectCategory,
         id = LocalizingService.ConnectDisconnectActionId)
 @ActionRegistration(
         iconBase = ConnectDisconnectAction.ICON_BASE_DISCONNECT,
-        displayName = "resources.MessagesBundle#" + LocalizingService.ConnectDisconnectActionTitleKey,
+        displayName = "resources/MessagesBundle#" + LocalizingService.ConnectDisconnectActionTitleKey,
         lazy = false)
 @ActionReferences({
         @ActionReference(
@@ -60,11 +66,11 @@ import java.util.logging.Logger;
                 position = 975)
 })
 public class ConnectDisconnectAction extends AbstractAction implements UGSEventListener {
-    public static final String ICON_BASE = "resources/icons/connect.png";
-    public static final String ICON_BASE_DISCONNECT = "resources/icons/disconnect.png";
+    public static final String ICON_BASE = "resources/icons/connect.svg";
+    public static final String ICON_BASE_DISCONNECT = "resources/icons/disconnect.svg";
 
     private static final Logger logger = Logger.getLogger(ConnectDisconnectAction.class.getName());
-    private BackendAPI backend;
+    private final BackendAPI backend;
 
     public ConnectDisconnectAction() {
         this.backend = CentralLookup.getDefault().lookup(BackendAPI.class);
@@ -77,22 +83,21 @@ public class ConnectDisconnectAction extends AbstractAction implements UGSEventL
 
     @Override
     public void UGSEvent(UGSEvent cse) {
-        if (cse != null && cse.isStateChangeEvent()) {
+        if (cse instanceof ControllerStateEvent) {
             EventQueue.invokeLater(this::updateIconAndText);
         }
     }
 
     private void updateIconAndText() {
-        if (backend.isConnected()) {
-            putValue(NAME, LocalizingService.ConnectDisconnectTitleDisconnect);
-            putValue("menuText", LocalizingService.ConnectDisconnectTitleDisconnect);
-            putValue("iconBase", ICON_BASE);
-            putValue(SMALL_ICON, ImageUtilities.loadImageIcon(ICON_BASE, false));
-        } else {
-            putValue(NAME, LocalizingService.ConnectDisconnectTitleConnect);
+        putValue(NAME, LocalizingService.ConnectDisconnectActionTitle);
+        if (backend.getControllerState() == ControllerState.DISCONNECTED) {
             putValue("menuText", LocalizingService.ConnectDisconnectTitleConnect);
             putValue("iconBase", ICON_BASE_DISCONNECT);
             putValue(SMALL_ICON, ImageUtilities.loadImageIcon(ICON_BASE_DISCONNECT, false));
+        } else {
+            putValue("menuText", LocalizingService.ConnectDisconnectTitleDisconnect);
+            putValue("iconBase", ICON_BASE);
+            putValue(SMALL_ICON, ImageUtilities.loadImageIcon(ICON_BASE, false));
         }
     }
 
@@ -113,7 +118,7 @@ public class ConnectDisconnectAction extends AbstractAction implements UGSEventL
 
     private void connect() {
         logger.log(Level.INFO, "openclose button, connection open: {0}", backend.isConnected());
-        if (!backend.isConnected()) {
+        if (backend.getControllerState() == ControllerState.DISCONNECTED) {
             Settings s = backend.getSettings();
 
             String firmware = s.getFirmwareVersion();
@@ -132,7 +137,7 @@ public class ConnectDisconnectAction extends AbstractAction implements UGSEventL
                 backend.disconnect();
             } catch (Exception e) {
                 String message = e.getMessage();
-                if(StringUtils.isEmpty(message)) {
+                if (StringUtils.isEmpty(message)) {
                     message = "Got an unknown error while disconnecting, see log for more details";
                     logger.log(Level.SEVERE, "Got an unknown error while disconnecting", e);
                 }

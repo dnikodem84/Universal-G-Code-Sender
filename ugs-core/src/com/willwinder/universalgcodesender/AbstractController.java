@@ -1,5 +1,5 @@
 /*
-    Copyright 2013-2019 Will Winder
+    Copyright 2013-2024 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -18,19 +18,32 @@
  */
 package com.willwinder.universalgcodesender;
 
+import static com.willwinder.universalgcodesender.Utils.formatter;
+import com.willwinder.universalgcodesender.communicator.ICommunicator;
+import com.willwinder.universalgcodesender.communicator.ICommunicatorListener;
 import com.willwinder.universalgcodesender.connection.ConnectionDriver;
-import com.willwinder.universalgcodesender.gcode.GcodeCommandCreator;
 import com.willwinder.universalgcodesender.gcode.GcodeParser;
 import com.willwinder.universalgcodesender.gcode.GcodeState;
+import com.willwinder.universalgcodesender.gcode.ICommandCreator;
 import com.willwinder.universalgcodesender.gcode.util.GcodeUtils;
 import com.willwinder.universalgcodesender.i18n.Localization;
 import com.willwinder.universalgcodesender.listeners.ControllerListener;
 import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.ControllerStatus;
 import com.willwinder.universalgcodesender.listeners.MessageType;
-import com.willwinder.universalgcodesender.listeners.CommunicatorListener;
-import com.willwinder.universalgcodesender.model.*;
-import com.willwinder.universalgcodesender.model.UGSEvent.ControlState;
+import com.willwinder.universalgcodesender.model.Alarm;
+import com.willwinder.universalgcodesender.model.Axis;
+import com.willwinder.universalgcodesender.model.CommunicatorState;
+import static com.willwinder.universalgcodesender.model.CommunicatorState.COMM_CHECK;
+import static com.willwinder.universalgcodesender.model.CommunicatorState.COMM_DISCONNECTED;
+import static com.willwinder.universalgcodesender.model.CommunicatorState.COMM_IDLE;
+import static com.willwinder.universalgcodesender.model.CommunicatorState.COMM_SENDING;
+import static com.willwinder.universalgcodesender.model.CommunicatorState.COMM_SENDING_PAUSED;
+import com.willwinder.universalgcodesender.model.PartialPosition;
+import com.willwinder.universalgcodesender.model.Position;
+import com.willwinder.universalgcodesender.model.UnitUtils;
+import static com.willwinder.universalgcodesender.model.UnitUtils.Units.MM;
+import static com.willwinder.universalgcodesender.model.UnitUtils.scaleUnits;
 import com.willwinder.universalgcodesender.services.MessageService;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
 import com.willwinder.universalgcodesender.utils.IGcodeStreamReader;
@@ -39,45 +52,43 @@ import org.apache.commons.lang3.time.StopWatch;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.BlockingDeque;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.logging.Level;
 import java.util.logging.Logger;
-
-import static com.willwinder.universalgcodesender.Utils.formatter;
-import static com.willwinder.universalgcodesender.model.UGSEvent.ControlState.*;
-import static com.willwinder.universalgcodesender.model.UnitUtils.Units.MM;
-import static com.willwinder.universalgcodesender.model.UnitUtils.scaleUnits;
 
 /**
  * Abstract Control layer, coordinates all aspects of control.
  *
  * @author wwinder
  */
-public abstract class AbstractController implements CommunicatorListener, IController {;
+public abstract class AbstractController implements ICommunicatorListener, IController {
     private static final Logger logger = Logger.getLogger(AbstractController.class.getName());
     private final GcodeParser parser = new GcodeParser();
+    private final ConnectionWatchTimer connectionWatchTimer = new ConnectionWatchTimer(this);
+    private final ICommandCreator commandCreator;
 
     // These abstract objects are initialized in concrete class.
     protected final ICommunicator comm;
-    protected MessageService messageService;
-    protected GcodeCommandCreator commandCreator;
-
-    // Outside influence
-    private boolean statusUpdatesEnabled = true;
-    private int statusUpdateRate = 200;
+    protected MessageService messageService = new MessageService();
 
     // Added value
-    private Boolean isStreaming = false;
+    private final AtomicBoolean isStreaming = new AtomicBoolean(false);
 
     // For keeping track of the time spent streaming a file
-    private StopWatch streamStopWatch = new StopWatch();
+    private final StopWatch streamStopWatch = new StopWatch();
 
     // This metadata needs to be cached instead of looked up from queues and
     // streams, because those sources may be compromised during a cancel.
-    private int numCommands = 0;
-    private int numCommandsSent = 0;
-    private int numCommandsSkipped = 0;
-    private int numCommandsCompleted = 0;
+    private final AtomicInteger numCommands = new AtomicInteger(0);
+    private final AtomicInteger numCommandsSent =  new AtomicInteger(0);
+    private final AtomicInteger numCommandsSkipped = new AtomicInteger(0);
+    private final AtomicInteger numCommandsCompleted = new AtomicInteger(0);
 
     // Commands become active after the Communicator notifies us that they have
     // been sent.
@@ -87,11 +98,11 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     //   2) As commands are sent by the Communicator create a GCodeCommand
     //      (with command number) object and add it to the activeCommands list.
     //   3) As commands are completed remove them from the activeCommand list.
-    private ArrayList<GcodeCommand> activeCommands;    // The list of active commands.
+    private final BlockingDeque<GcodeCommand> activeCommands;    // The list of active commands.
     private IGcodeStreamReader streamCommands;    // The stream of commands to send.
 
     // Listeners
-    private ArrayList<ControllerListener> listeners;
+    private final List<ControllerListener> listeners;
 
     //Track current mode to restore after jogging
     private String distanceModeCode = null;
@@ -99,8 +110,7 @@ public abstract class AbstractController implements CommunicatorListener, IContr
 
     // Maintain the current state given actions performed.
     // Concrete classes with a status field should override getControlState.
-    private ControlState currentState = COMM_DISCONNECTED;
-
+    private CommunicatorState currentState = COMM_DISCONNECTED;
 
     /** API Interface. */
 
@@ -108,37 +118,37 @@ public abstract class AbstractController implements CommunicatorListener, IContr
      * Called to ask controller if it is idle.
      */
     protected abstract Boolean isIdleEvent();
-    
+
     /**
      * Called before and after comm shutdown allowing device specific behavior.
      */
     abstract protected void closeCommBeforeEvent();
     abstract protected void closeCommAfterEvent();
-    
+
     /**
      * Called after comm opening allowing device specific behavior.
-     * @throws IOException 
+     * @throws IOException
      */
     protected void openCommAfterEvent() throws Exception {
-    	// Empty default implementation. 
+    	// Empty default implementation.
     }
-    
+
     /**
      * Called before and after a send cancel allowing device specific behavior.
      */
     abstract protected void cancelSendBeforeEvent() throws Exception;
     abstract protected void cancelSendAfterEvent() throws Exception;
-    
+
     /**
-     * Called before the comm is paused and before it is resumed. 
+     * Called before the comm is paused and before it is resumed.
      */
     abstract protected void pauseStreamingEvent() throws Exception;
     abstract protected void resumeStreamingEvent() throws Exception;
-    
+
     /**
      * Called prior to sending commands, throw an exception if not ready.
      */
-    abstract protected void isReadyToSendCommandsEvent() throws Exception;
+    abstract protected void isReadyToSendCommandsEvent() throws ControllerException;
     /**
      * Called prior to streaming commands, separate in case you need to be more
      * restrictive about streaming a file vs. sending a command.
@@ -150,7 +160,7 @@ public abstract class AbstractController implements CommunicatorListener, IContr
      * Raw responses from the serial communicator.
      */
     abstract protected void rawResponseHandler(String response);
-    
+
     /**
      * Performs homing cycle, throw an exception if not supported.
      */
@@ -158,29 +168,42 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     public void performHomingCycle() throws Exception {
         throw new Exception(Localization.getString("controller.exception.homing"));
     }
-    
-    /**
-     * Returns machine to home location, throw an exception if not supported.
-     */
+
     @Override
-    public void returnToHome() throws Exception {
-        throw new Exception(Localization.getString("controller.exception.gohome"));
+    public void returnToHome(double safetyHeightInMm) throws Exception {
+        if (isIdle()) {
+            // Convert the safety height to the same units as the current gcode state
+            UnitUtils.Units currentUnit = getCurrentGcodeState().getUnits();
+            double safetyHeight = safetyHeightInMm * UnitUtils.scaleUnits(MM, currentUnit);
+
+            // If Z is less than zero, raise it before further movement.
+            double currentZPosition = getControllerStatus().getWorkCoord().getPositionIn(currentUnit).get(Axis.Z);
+            if (currentZPosition < safetyHeight) {
+                String moveToSafetyHeightCommand = GcodeUtils.GCODE_RETURN_TO_Z_ZERO_LOCATION;
+                if (safetyHeight > 0) {
+                    moveToSafetyHeightCommand = GcodeUtils.generateMoveCommand("G90 G0", 0, new PartialPosition(null, null, safetyHeight, currentUnit));
+                }
+                sendCommandImmediately(createCommand(moveToSafetyHeightCommand));
+            }
+            sendCommandImmediately(createCommand(GcodeUtils.GCODE_RETURN_TO_XY_ZERO_LOCATION));
+            sendCommandImmediately(createCommand(GcodeUtils.GCODE_RETURN_TO_Z_ZERO_LOCATION));
+        }
     }
-        
+
     /**
      * Reset machine coordinates to zero at the current location.
      */
     @Override
     public void resetCoordinatesToZero() throws Exception {
-        setWorkPosition(new PartialPosition(0.0, 0.0, 0.0));
+        setWorkPosition(new PartialPosition(0.0, 0.0, 0.0, getCurrentGcodeState().getUnits()));
     }
-    
+
     /**
      * Reset given machine coordinate to zero at the current location.
      */
     @Override
     public void resetCoordinateToZero(final Axis axis) throws Exception {
-        setWorkPosition(PartialPosition.from(axis, 0.0));
+        setWorkPosition(PartialPosition.from(axis, 0.0, getCurrentGcodeState().getUnits()));
     }
 
     @Override
@@ -188,15 +211,20 @@ public abstract class AbstractController implements CommunicatorListener, IContr
         throw new Exception(Localization.getString("controller.exception.setworkpos"));
     }
 
+    @Override
+    public void openDoor() throws Exception {
+        throw new Exception(Localization.getString("controller.exception.door"));
+    }
+
     /**
-     * Disable alarm mode and put device into idle state, throw an exception 
+     * Disable alarm mode and put device into idle state, throw an exception
      * if not supported.
      */
     @Override
     public void killAlarmLock() throws Exception {
         throw new Exception(Localization.getString("controller.exception.killalarm"));
     }
-    
+
     /**
      * Toggles check mode on or off, throw an exception if not supported.
      */
@@ -204,7 +232,7 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     public void toggleCheckMode() throws Exception {
         throw new Exception(Localization.getString("controller.exception.checkmode"));
     }
-    
+
     /**
      * Request parser state, either print it here or expect it in the response
      * handler. Throw an exception if not supported.
@@ -213,7 +241,7 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     public void viewParserState() throws Exception {
         throw new Exception(Localization.getString("controller.exception.parserstate"));
     }
-    
+
     /**
      * Execute a soft reset, throw an exception if not supported.
      */
@@ -228,12 +256,10 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     }
 
     @Override
-    public void jogMachine(int dirX, int dirY, int dirZ, double stepSize,
-            double feedRate, UnitUtils.Units units) throws Exception {
+    public void jogMachine(PartialPosition distance, double feedRate) throws Exception {
         logger.log(Level.INFO, "Adjusting manual location.");
 
-        String commandString = GcodeUtils.generateMoveCommand("G91G1",
-                stepSize, feedRate, dirX, dirY, dirZ, units);
+        String commandString = GcodeUtils.generateMoveCommand("G91G1", feedRate, distance);
 
         GcodeCommand command = createCommand(commandString);
         command.setTemporaryParserModalChange(true);
@@ -289,30 +315,22 @@ public abstract class AbstractController implements CommunicatorListener, IContr
 
         restoreParserModalState();
     }
-    
-    /**
-     * Listener event for status update values;
-     */
-    abstract protected void statusUpdatesEnabledValueChanged(boolean enabled);
-    abstract protected void statusUpdatesRateValueChanged(int rate);
 
-    /**
-     * Accessible so that it can be configured.
-     * @return
-     */
-    public GcodeCommandCreator getCommandCreator() {
+    @Override
+    public ICommandCreator getCommandCreator() {
         return commandCreator;
     }
 
     /**
      * Dependency injection constructor to allow a mock communicator.
      */
-    protected AbstractController(ICommunicator comm) {
+    protected AbstractController(ICommunicator comm, ICommandCreator commandCreator) {
         this.comm = comm;
         this.comm.addListener(this);
 
-        this.activeCommands = new ArrayList<>();
-        this.listeners = new ArrayList<>();
+        this.activeCommands = new LinkedBlockingDeque<>();
+        this.listeners = Collections.synchronizedList(new ArrayList<>());
+        this.commandCreator = commandCreator;
     }
 
     @Override
@@ -329,90 +347,72 @@ public abstract class AbstractController implements CommunicatorListener, IContr
         }
         return false;
     }
-    
-    @Override
-    public void setStatusUpdatesEnabled(boolean enabled) {
-        if (this.statusUpdatesEnabled != enabled) {
-            this.statusUpdatesEnabled = enabled;
-            statusUpdatesEnabledValueChanged(enabled);
-        }
-    }
-    
-    @Override
-    public boolean getStatusUpdatesEnabled() {
-        return this.statusUpdatesEnabled;
-    }
-    
-    @Override
-    public void setStatusUpdateRate(int rate) {
-        if (this.statusUpdateRate != rate) {
-            this.statusUpdateRate = rate;
-            statusUpdatesRateValueChanged(rate);
-        }
-    }
-    
-    @Override
-    public int getStatusUpdateRate() {
-        return this.statusUpdateRate;
-    }
-    
+
     @Override
     public Boolean openCommPort(ConnectionDriver connectionDriver, String port, int portRate) throws Exception {
         if (isCommOpen()) {
             throw new Exception("Comm port is already open.");
         }
-        
-        // No point in checking response, it throws an exception on errors.
-        this.comm.connect(connectionDriver, port, portRate);
-        this.setCurrentState(COMM_IDLE);
-        
-        if (isCommOpen()) {
-            this.openCommAfterEvent();
 
-            this.dispatchConsoleMessage(MessageType.INFO,
-                    "**** Connected to " + port + " @ " + portRate + " baud ****\n");
+        // No point in checking response, it throws an exception on errors.
+        this.setCurrentState(COMM_IDLE);
+        this.setControllerState(ControllerState.CONNECTING);
+        this.comm.connect(connectionDriver, port, portRate);
+
+        if (isCommOpen()) {
+            dispatchConsoleMessage(MessageType.INFO,
+                    "*** " + Localization.getString("controller.connected.to") + " " + port + " @ " + portRate + " baud\n");
+            openCommAfterEvent();
         }
-                
+
+        connectionWatchTimer.start();
         return isCommOpen();
     }
+
+    protected abstract void setControllerState(ControllerState controllerState);
 
     @Override
     public Boolean closeCommPort() throws Exception {
         // Already closed.
-        if (!isCommOpen()) {
+        if (!isCommOpen() && getControllerStatus().getState() == ControllerState.DISCONNECTED) {
             return true;
         }
-        
+
         this.closeCommBeforeEvent();
-        
-        this.dispatchConsoleMessage(MessageType.INFO,"**** Connection closed ****\n");
-        
-        // I was noticing odd behavior, such as continuing to send 'ok's after
-        // closing and reopening the comm port.
-        // Note: The "Configuring-Grbl-v0.8" documentation recommends frequent
-        //       soft resets, but also warns that the "startup" block will run
-        //       on a reset and startup blocks may include motion commands.
-        //this.issueSoftReset();
+
+        dispatchConsoleMessage(MessageType.INFO,"*** " + Localization.getString("controller.connection.closed") + "\n");
+
         this.flushSendQueues();
-        this.commandCreator.resetNum();
         this.comm.disconnect();
 
         this.closeCommAfterEvent();
+        this.setControllerState(ControllerState.DISCONNECTED);
+        this.connectionWatchTimer.stop();
         return true;
     }
-    
+
+    @Override
+    public void onConnectionClosed() {
+        try {
+            closeCommPort();
+        } catch (Exception e) {
+            // Ignore
+        }
+    }
+
+
     @Override
     public Boolean isCommOpen() {
         return comm != null && comm.isConnected();
     }
-    
+
     //// File send metadata ////
-    
+
     @Override
     public Boolean isStreaming() {
-        return this.isStreaming;
+        return isStreaming.get();
     }
-    
+
     /**
      * Send duration can be one of 3 things:
      * 1. the current running time of a send.
@@ -422,6 +422,10 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     @Override
     public long getSendDuration() {
         return streamStopWatch.getTime();
+    }
+
+    public MessageService getMessageService() {
+        return messageService;
     }
 
     private enum RowStat {
@@ -434,28 +438,23 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     /**
      * Get one of the row statistics, returns -1 if stat is unavailable.
      * @param stat
-     * @return 
+     * @return
      */
     public int getRowStat(RowStat stat) {
-        switch (stat) {
-            case TOTAL_ROWS:
-                return this.numCommands;
-            case ROWS_SENT:
-                return this.numCommandsSent;
-            case ROWS_COMPLETED:
-                return this.numCommandsCompleted + this.numCommandsSkipped;
-            case ROWS_REMAINING:
-                return this.numCommands <= 0 ? 0 : this.numCommands - (this.numCommandsCompleted + this.numCommandsSkipped);
-            default:
-                throw new IllegalStateException("This should be impossible - RowStat default case.");
-        }
+        return switch (stat) {
+            case TOTAL_ROWS -> numCommands.get();
+            case ROWS_SENT -> numCommandsSent.get();
+            case ROWS_COMPLETED -> numCommandsCompleted.get() + numCommandsSkipped.get();
+            case ROWS_REMAINING ->
+                    numCommands.get() <= 0 ? 0 : numCommands.get() - (numCommandsCompleted.get() + numCommandsSkipped.get());
+        };
     }
 
     @Override
     public int rowsInSend() {
         return getRowStat(RowStat.TOTAL_ROWS);
     }
-    
+
     @Override
     public int rowsSent() {
         return getRowStat(RowStat.ROWS_SENT);
@@ -465,7 +464,7 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     public int rowsCompleted() {
         return getRowStat(RowStat.ROWS_COMPLETED);
     }
-    
+
     @Override
     public int rowsRemaining() {
         return getRowStat(RowStat.ROWS_REMAINING);
@@ -473,42 +472,39 @@ public abstract class AbstractController implements CommunicatorListener, IContr
 
     @Override
     public Optional<GcodeCommand> getActiveCommand() {
-        if (activeCommands.isEmpty()) {
-            return Optional.empty();
-        }
-        return Optional.of(activeCommands.get(0));
+        return Optional.ofNullable(activeCommands.peekFirst());
     }
 
     @Override
     public GcodeState getCurrentGcodeState() {
         return parser.getCurrentState();
     }
-    
+
     /**
      * Creates a gcode command and queues it for send immediately.
      * Note: this is the only place where a string is sent to the comm.
      */
     @Override
-    public void sendCommandImmediately(GcodeCommand command) throws Exception {
+    public void sendCommandImmediately(GcodeCommand command) throws ControllerException {
         isReadyToSendCommandsEvent();
-        
+
         if (!isCommOpen()) {
-            throw new Exception("Cannot send command(s), comm port is not open.");
+            throw new ControllerException("Cannot send command(s), comm port is not open.");
         }
 
-        this.setCurrentState(ControlState.COMM_SENDING);
+        this.setCurrentState(CommunicatorState.COMM_SENDING);
         this.comm.queueCommand(command);
         this.comm.streamCommands();
     }
 
     @Override
-    public Boolean isReadyToReceiveCommands() throws Exception {
+    public Boolean isReadyToReceiveCommands() throws ControllerException {
         if (!isCommOpen()) {
-            throw new Exception("Comm port is not open.");
+            throw new ControllerException("Comm port is not open.");
         }
 
         if (this.isStreaming()) {
-            throw new Exception("Already streaming.");
+            throw new ControllerException("Already streaming.");
         }
 
         return true;
@@ -517,7 +513,7 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     @Override
     public Boolean isReadyToStreamFile() throws Exception {
         isReadyToStreamCommandsEvent();
-        
+
         isReadyToReceiveCommands();
 
         if (this.comm.areActiveCommands()) {
@@ -538,7 +534,7 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     public GcodeCommand createCommand(String gcode) throws Exception {
         return this.commandCreator.createCommand(gcode);
     }
-    
+
     /**
      * Send all queued commands to comm port.
      * @throws java.lang.Exception
@@ -552,41 +548,37 @@ public abstract class AbstractController implements CommunicatorListener, IContr
         if (this.streamCommands == null) {
             throw new Exception("There are no commands queued for streaming.");
         }
-        
-        // Grbl's "Configuring-Grbl-v0.8" documentation recommends a soft reset
-        // prior to starting a job. But will this cause GRBL to reset all the
-        // way to reporting version info? Need to double check that before
-        // enabling.
-        //this.issueSoftReset();
-        
-        this.isStreaming = true;
-        this.streamStopWatch.reset();
-        this.streamStopWatch.start();
-        this.numCommands = 0;
-        this.numCommandsSent = 0;
-        this.numCommandsSkipped = 0;
-        this.numCommandsCompleted = 0;
+
+        isStreaming.set(true);
+        streamStopWatch.reset();
+        streamStopWatch.start();
+        numCommands.set(0);
+        numCommandsSent.set(0);
+        numCommandsSkipped.set(0);
+        numCommandsCompleted.set(0);
         updateNumCommands();
 
         // Send all queued commands and streams then kick off the stream.
         try {
+            listeners.forEach(ControllerListener::streamStarted);
             if (this.streamCommands != null) {
                 comm.queueStreamForComm(this.streamCommands);
             }
 
             comm.streamCommands();
         } catch(Exception e) {
-            this.isStreaming = false;
+            isStreaming.set(false);
             this.streamStopWatch.reset();
             this.comm.cancelSend();
             throw e;
         }
     }
-    
+
     @Override
     public void pauseStreaming() throws Exception {
-        this.dispatchConsoleMessage(MessageType.INFO,"\n**** Pausing file transfer. ****\n\n");
+        dispatchConsoleMessage(MessageType.INFO, "*** " + Localization.getString("controller.pause.send") + "\n");
         pauseStreamingEvent();
+        listeners.forEach(ControllerListener::streamPaused);
         this.comm.pauseSend();
         this.setCurrentState(COMM_SENDING_PAUSED);
 
@@ -594,11 +586,12 @@ public abstract class AbstractController implements CommunicatorListener, IContr
             this.streamStopWatch.suspend();
         }
     }
-    
+
     @Override
     public void resumeStreaming() throws Exception {
-        this.dispatchConsoleMessage(MessageType.INFO, "\n**** Resuming file transfer. ****\n\n");
+        dispatchConsoleMessage(MessageType.INFO, "*** " + Localization.getString("controller.resume.send") + "\n");
         resumeStreamingEvent();
+        listeners.forEach(ControllerListener::streamResumed);
         this.comm.resumeSend();
         this.setCurrentState(COMM_SENDING);
 
@@ -606,21 +599,21 @@ public abstract class AbstractController implements CommunicatorListener, IContr
             this.streamStopWatch.resume();
         }
     }
-    
+
     @Override
-    public ControlState getControlState() {
+    public CommunicatorState getCommunicatorState() {
         return this.currentState;
     }
 
     @Override
     public Boolean isPaused() {
-        return getControlState() == COMM_SENDING_PAUSED;
+        return getCommunicatorState() == COMM_SENDING_PAUSED;
     }
 
     @Override
     public Boolean isIdle() {
         try {
-            return (getControlState() == COMM_IDLE || getControlState() == COMM_CHECK) && isIdleEvent();
+            return (getCommunicatorState() == COMM_IDLE || getCommunicatorState() == COMM_CHECK) && isIdleEvent();
         } catch (Exception e) {
             return false;
         }
@@ -628,30 +621,26 @@ public abstract class AbstractController implements CommunicatorListener, IContr
 
     @Override
     public void cancelSend() throws Exception {
-        this.dispatchConsoleMessage(MessageType.INFO, "\n**** Canceling file transfer. ****\n\n");
-
         cancelSendBeforeEvent();
-        
-        // Don't clear the command queue, there might be a situation where a
-        // send is in progress while the next queue is being built. In which
-        // case a cancel would only be expected to cancel the current action
-        // to make way for the queued commands.
-        //this.prepQueue.clear();
-        
+        dispatchConsoleMessage(MessageType.INFO, "*** " + Localization.getString("controller.cancel.send") + "\n");
+        listeners.forEach(ControllerListener::streamCanceled);
         cancelCommands();
-        
-        // If there are no active commands, done streaming. Otherwise wait for
-        // them to finish.
-        if (!comm.areActiveCommands()) {
-            this.isStreaming = false;
-        }
-
         cancelSendAfterEvent();
+    }
+    
+    // Default implementation just calls cancelSend()
+    @Override
+    public void cancelJog() throws Exception {
+        cancelSend();
     }
 
     @Override
     public void cancelCommands() {
-        this.comm.cancelSend();
+        comm.cancelSend();
+        isStreaming.set(false);
+        if (streamStopWatch.isStarted()) {
+            streamStopWatch.stop();
+        }
     }
 
     @Override
@@ -663,50 +652,44 @@ public abstract class AbstractController implements CommunicatorListener, IContr
 
     // Reset send queue and idx's.
     private void flushSendQueues() {
-        numCommands = 0;
+        numCommands.set(0);
     }
 
     private void updateNumCommands() {
         if (streamCommands != null) {
-            numCommands = streamCommands.getNumRows();
+            numCommands.set(streamCommands.getNumRows());
         }
-        numCommandsSkipped = 0;
-        numCommandsCompleted = 0;
-        numCommandsSent = 0;
+        numCommandsSkipped.set(0);
+        numCommandsCompleted.set(0);
+        numCommandsSent.set(0);
     }
-    
+
     // No longer a listener event
-    protected void fileStreamComplete(String filename, boolean success) {
-
-        String duration = 
-                com.willwinder.universalgcodesender.Utils.
-                        formattedMillis(this.getSendDuration());
-
-        this.dispatchConsoleMessage(MessageType.INFO,"\n**** Finished sending file in "+duration+" ****\n\n");
-        this.streamStopWatch.stop();
-        this.isStreaming = false;
-        dispatchStreamComplete(filename, success);        
+    protected void fileStreamComplete() {
+        String duration = Utils.formattedMillis(getSendDuration());
+        dispatchConsoleMessage(MessageType.INFO, "*** " + Localization.getString("controller.finished.send") + String.format(" %s", duration) + "\n");
+        if (streamStopWatch.isStarted()) {
+            streamStopWatch.stop();
+        }
+        isStreaming.set(false);
+        dispatchStreamComplete();
     }
-    
+
     @Override
     public void commandSent(GcodeCommand command) {
         if (this.isStreaming()) {
-            this.numCommandsSent++;
+            numCommandsSent.incrementAndGet();
         }
-        
+
         command.setSent(true);
         this.activeCommands.add(command);
-        
-        if (command.hasComment()) {
-            dispatchCommandCommment(command.getComment());
-        }
+
         dispatchCommandSent(command);
-        dispatchConsoleMessage(MessageType.INFO, ">>> " + StringUtils.trimToEmpty(command.getCommandString()) + "\n");
     }
 
     @Override
     public void communicatorPausedOnError() {
-        dispatchConsoleMessage(MessageType.INFO, "**** The communicator has been paused ****\n");
+        dispatchConsoleMessage(MessageType.INFO, "*** The communicator has been paused\n");
         try {
             // Synchronize the controller <> communicator state.
             if (!this.isStreaming()) {
@@ -714,8 +697,6 @@ public abstract class AbstractController implements CommunicatorListener, IContr
             }
             else {
                 this.pauseStreaming();
-                // In check mode there is no state transition, so we need to manually make the notification.
-                this.dispatchStateChange(COMM_SENDING_PAUSED);
             }
         } catch (Exception ignored) {
             logger.log(Level.SEVERE, "Couldn't set the state to paused.");
@@ -723,25 +704,22 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     }
 
     public void checkStreamFinished() {
+        ControllerState state = getControllerStatus().getState();
         if (this.isStreaming() &&
                 !this.comm.areActiveCommands() &&
                 this.comm.numActiveCommands() == 0 &&
                 rowsRemaining() <= 0 &&
-                (getControllerStatus().getState().equals(ControllerState.CHECK) || getControlState() == COMM_IDLE || getControlState() == COMM_SENDING_PAUSED)) {
-            String streamName = "queued commands";
-            this.fileStreamComplete(streamName, true);
-
-            // Make sure the GUI gets updated when the file finishes
-            this.dispatchStateChange(getControlState());
+                (state == ControllerState.CHECK || state == ControllerState.IDLE)) {
+            this.fileStreamComplete();
         }
     }
 
     @Override
     public void commandSkipped(GcodeCommand command) {
         if (this.isStreaming()) {
-            this.numCommandsSkipped++;
+            numCommandsSkipped.incrementAndGet();
         }
-        
+
         StringBuilder message = new StringBuilder();
         boolean hasComment = command.hasComment();
         boolean hasCommand = StringUtils.isNotEmpty(command.getCommandString());
@@ -775,35 +753,29 @@ public abstract class AbstractController implements CommunicatorListener, IContr
         this.dispatchConsoleMessage(MessageType.INFO, message.toString());
         command.setResponse("<skipped by application>");
         command.setSkipped(true);
+        command.setDone(true);
         dispatchCommandSkipped(command);
-        if (command.hasComment()) {
-            dispatchCommandCommment(command.getComment());
-        }
 
         checkStreamFinished();
     }
-    
+
     /**
      * Notify controller that the next command has completed with response and
      * that the stream is complete once the last command has finished.
      */
-    public void commandComplete(String response) throws UnexpectedCommand {
-        if (this.activeCommands.isEmpty()) {
+    public void commandComplete() throws UnexpectedCommand {
+        if (activeCommands.isEmpty()) {
             throw new UnexpectedCommand(
                     Localization.getString("controller.exception.unexpectedCommand"));
         }
-        
-        GcodeCommand command = this.activeCommands.remove(0);
 
-        command.setResponse(response);
-        GrblUtils.updateGcodeCommandFromResponse(command, response);
-
+        GcodeCommand command = activeCommands.pollFirst();
         updateParserModalState(command);
 
-        this.numCommandsCompleted++;
+        numCommandsCompleted.incrementAndGet();
 
-        if (this.activeCommands.isEmpty()) {
-            this.setCurrentState(COMM_IDLE);
+        if (activeCommands.isEmpty()) {
+            setCurrentState(COMM_IDLE);
         }
 
         dispatchCommandComplete(command);
@@ -815,11 +787,8 @@ public abstract class AbstractController implements CommunicatorListener, IContr
         rawResponseHandler(response);
     }
 
-    protected void setCurrentState(ControlState state) {
+    protected void setCurrentState(CommunicatorState state) {
         this.currentState = state;
-        if (!this.handlesAllStateChangeEvents()) {
-            this.dispatchStateChange(state);
-        }
     }
 
     @Override
@@ -839,13 +808,9 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     }
 
     protected void dispatchStatusString(ControllerStatus status) {
-        if (listeners != null) {
-            for (ControllerListener c : listeners) {
-                c.statusStringListener(status);
-            }
-        }
+        listeners.forEach(l -> l.statusStringListener(status));
     }
-    
+
     protected void dispatchConsoleMessage(MessageType type, String message) {
         if (messageService != null) {
             messageService.dispatchMessage(type, message);
@@ -853,67 +818,29 @@ public abstract class AbstractController implements CommunicatorListener, IContr
             logger.fine("No message service is assigned, so the message could not be delivered: " + type + ": " + message);
         }
     }
-    
-    protected void dispatchStateChange(ControlState state) {
-        if (listeners != null) {
-            for (ControllerListener c : listeners) {
-                c.controlStateChange(state);
-            }
-        }
+
+    protected void dispatchStreamComplete() {
+        listeners.forEach(ControllerListener::streamComplete);
     }
 
-    protected void dispatchStreamComplete(String filename, Boolean success) {
-        if (listeners != null) {
-            for (ControllerListener c : listeners) {
-                c.fileStreamComplete(filename, success);
-            }
-        }
-    }
-    
     protected void dispatchCommandSkipped(GcodeCommand command) {
-        if (listeners != null) {
-            for (ControllerListener c : listeners) {
-                c.commandSkipped(command);
-            }
-        }
+        listeners.forEach(l -> l.commandSkipped(command));
     }
-    
+
     protected void dispatchCommandSent(GcodeCommand command) {
-        if (listeners != null) {
-            for (ControllerListener c : listeners) {
-                c.commandSent(command);
-            }
-        }
+        listeners.forEach(l -> l.commandSent(command));
     }
-    
+
     protected void dispatchCommandComplete(GcodeCommand command) {
-        if (listeners != null) {
-            for (ControllerListener c : listeners) {
-                c.commandComplete(command);
-            }
-        }
-    }
-    
-    protected void dispatchCommandCommment(String comment) {
-        if (listeners != null) {
-            for (ControllerListener c : listeners) {
-                c.commandComment(comment);
-            }
-        }
+        listeners.forEach(l -> l.commandComplete(command));
     }
 
     protected void dispatchAlarm(Alarm alarm) {
-        if (listeners != null) {
-            listeners.forEach(l -> l.receivedAlarm(alarm));
-        }
+        listeners.forEach(l -> l.receivedAlarm(alarm));
     }
 
     protected void dispatchProbeCoordinates(Position p) {
-        if (listeners != null) {
-            for (ControllerListener c : listeners) {
-                c.probeCoordinates(p);
-            }
-        }
+        listeners.forEach(l -> l.probeCoordinates(p));
     }
 
     protected String getUnitsCode() {
@@ -944,9 +871,8 @@ public abstract class AbstractController implements CommunicatorListener, IContr
 
         try {
           parser.addCommand(command.getCommandString());
-          //System.out.println(parser.getCurrentState());
         } catch (Exception e) {
-          logger.log(Level.SEVERE, "Problem parsing command.", e);
+          logger.log(Level.SEVERE, "Problem parsing command: " + command, e);
         }
 
         String gcode = command.getCommandString().toUpperCase();
@@ -991,6 +917,11 @@ public abstract class AbstractController implements CommunicatorListener, IContr
     @Override
     public void setMessageService(MessageService messageService) {
         this.messageService = messageService;
+    }
+
+    @Override
+    public IFileService getFileService() {
+        throw new RuntimeException("The file service is not available for this type of controller");
     }
 
     public class UnexpectedCommand extends Exception {

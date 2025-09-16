@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2018 Will Winder
+    Copyright 2016-2024 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -24,20 +24,38 @@ import com.willwinder.universalgcodesender.firmware.IFirmwareSettings;
 import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.ControllerStatus;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
-import com.willwinder.universalgcodesender.model.UGSEvent.ControlState;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
+import com.willwinder.universalgcodesender.model.events.FileState;
+import com.willwinder.universalgcodesender.model.events.FileStateEvent;
+import com.willwinder.universalgcodesender.model.events.SettingChangedEvent;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
 import com.willwinder.universalgcodesender.utils.Settings;
 import org.apache.commons.io.FileUtils;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertNull;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 import org.junit.Before;
 import org.junit.Test;
 import org.mockito.ArgumentCaptor;
+import static org.mockito.Mockito.any;
+import static org.mockito.Mockito.anyDouble;
+import static org.mockito.Mockito.anyString;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
-
-import static org.junit.Assert.*;
-import static org.mockito.Mockito.*;
 
 /**
  * Unit test for GUIBackend
@@ -67,7 +85,8 @@ public class GUIBackendTest {
     public void setUp() throws Exception {
 
         // We need to mock the method that loads the controller
-        instance = spy(new GUIBackend());
+        UGSEventDispatcher eventDispatcher = new UGSEventDispatcher();
+        instance = spy(new GUIBackend(eventDispatcher));
         IFirmwareSettings firmwareSettings = mock(IFirmwareSettings.class);
         controller = mock(AbstractController.class);
         doReturn(controller).when(instance).fetchControllerFromFirmware(any());
@@ -85,17 +104,63 @@ public class GUIBackendTest {
     }
 
     @Test
-    public void adjustManualLocationShouldBeOk() throws Exception {
+    public void adjustManualLocationWhenIdleShouldBeOk() throws Exception {
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
-        instance.adjustManualLocation(1, 0, 0, 10, 10, UnitUtils.Units.MM);
-        verify(controller, times(1)).jogMachine(1, 0, 0, 10, 10, UnitUtils.Units.MM);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE));
+
+        PartialPosition p = new PartialPosition(10., 0., 0., UnitUtils.Units.MM);
+        instance.adjustManualLocation(p, 10);
+        verify(controller, times(1)).jogMachine(p, 10);
+    }
+
+    @Test
+    public void adjustManualLocationWhenAlreadyJoggingShouldBeOk() throws Exception {
+        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.JOG));
+
+        PartialPosition p = new PartialPosition(10., 0., 0., UnitUtils.Units.MM);
+        instance.adjustManualLocation(p, 10);
+        verify(controller, times(1)).jogMachine(p, 10);
+    }
+
+    @Test
+    public void adjustManualLocationWhenControllerStateIsDoorShouldBeSkipped() throws Exception {
+        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.DOOR));
+
+        PartialPosition p = new PartialPosition(10., 0., 0., UnitUtils.Units.MM);
+        instance.adjustManualLocation(p, 10);
+        verify(controller, times(0)).jogMachine(any(), anyDouble());
+    }
+
+    @Test
+    public void adjustManualLocationWhenControllerStateIsRunShouldBeSkipped() throws Exception {
+        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.RUN));
+
+        PartialPosition p = new PartialPosition(10., 0., 0., UnitUtils.Units.MM);
+        instance.adjustManualLocation(p, 10);
+        verify(controller, times(0)).jogMachine(any(), anyDouble());
+    }
+
+    @Test
+    public void adjustManualLocationWithZeroDirectionShouldNotMoveTheMachine() throws Exception {
+        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE));
+
+        PartialPosition p = new PartialPosition(0., 0., 0., UnitUtils.Units.MM);
+        instance.adjustManualLocation(p, 10);
+        verify(controller, times(0)).jogMachine(any(), anyDouble());
     }
 
     @Test
     public void adjustManualLocationWithNoDirectionShouldNotMoveTheMachine() throws Exception {
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
-        instance.adjustManualLocation(0, 0, 0, 10, 10, UnitUtils.Units.MM);
-        verify(controller, times(0)).jogMachine(anyInt(), anyInt(), anyInt(), anyDouble(), anyDouble(), any(UnitUtils.Units.class));
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE));
+
+        PartialPosition p = new PartialPosition(null, null, UnitUtils.Units.MM);
+        instance.adjustManualLocation(p, 10);
+        verify(controller, times(0)).jogMachine(any(), anyDouble());
     }
 
     @Test
@@ -105,9 +170,10 @@ public class GUIBackendTest {
         verify(controller, times(1)).probe(anyString(), anyDouble(), anyDouble(), any(UnitUtils.Units.class));
     }
 
+
     @Test
     public void pauseResumeWhenInIdleShouldThrowException() throws Exception {
-        when(controller.getControlState()).thenReturn(ControlState.COMM_IDLE);
+        when(controller.getCommunicatorState()).thenReturn(CommunicatorState.COMM_IDLE);
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
 
         try {
@@ -123,7 +189,7 @@ public class GUIBackendTest {
 
     @Test
     public void pauseResumeWhenDisconnectedShouldThrowException() throws Exception {
-        when(controller.getControlState()).thenReturn(ControlState.COMM_DISCONNECTED);
+        when(controller.getCommunicatorState()).thenReturn(CommunicatorState.COMM_DISCONNECTED);
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
 
         try {
@@ -139,7 +205,7 @@ public class GUIBackendTest {
 
     @Test
     public void pauseResumeWhenSendingShouldPause() throws Exception {
-        when(controller.getControlState()).thenReturn(ControlState.COMM_SENDING);
+        when(controller.getCommunicatorState()).thenReturn(CommunicatorState.COMM_SENDING);
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
 
         instance.pauseResume();
@@ -150,7 +216,7 @@ public class GUIBackendTest {
 
     @Test
     public void pauseResumeWhenPausedShouldResume() throws Exception {
-        when(controller.getControlState()).thenReturn(ControlState.COMM_SENDING_PAUSED);
+        when(controller.getCommunicatorState()).thenReturn(CommunicatorState.COMM_SENDING_PAUSED);
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
 
         instance.pauseResume();
@@ -162,6 +228,8 @@ public class GUIBackendTest {
     @Test
     public void getSendRemainingDuration() throws Exception {
         // Given
+        ControllerStatus controllerStatus = new ControllerStatus(ControllerState.RUN, Position.ZERO, Position.ZERO);
+        when(controller.getControllerStatus()).thenReturn(controllerStatus);
         when(controller.rowsCompleted()).thenReturn(10);
         when(controller.getSendDuration()).thenReturn(10L);
         when(controller.rowsInSend()).thenReturn(1000);
@@ -196,10 +264,11 @@ public class GUIBackendTest {
         instance.connect("unknown", PORT, BAUD_RATE);
     }
 
-    @Test(expected = Exception.class)
-    public void connectWhenFailingToOpenControllerConnectionShouldNotBeOk() throws Exception {
+    @Test
+    public void connectWhenFailingToOpenControllerConnectionShouldNotBeOkAndDisconnect() throws Exception {
         when(controller.openCommPort(settings.getConnectionDriver(), PORT, BAUD_RATE)).thenThrow(new Exception());
-        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        assertThrows(Exception.class, () -> instance.connect(FIRMWARE, PORT, BAUD_RATE));
+        verify(instance, times(1)).disconnect();
     }
 
     @Test
@@ -234,15 +303,89 @@ public class GUIBackendTest {
     }
 
     @Test
-    public void isConnectedShouldReturnFalseIfNeverConnected() throws Exception {
+    public void isConnectedShouldReturnFalseIfNeverConnected() {
         assertFalse(instance.isConnected());
     }
 
+    @Test
+    public void isIdleShouldReturnFalseIfNotConnected() {
+        assertFalse(instance.isIdle());
+    }
+
+    @Test
+    public void isIdleShouldReturnTrueIfControllerIsInStateIdle() throws Exception {
+        // Given
+        when(controller.isCommOpen()).thenReturn(true);
+        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        ControllerStatus controllerStatus = new ControllerStatus(ControllerState.IDLE, new Position(0, 0, 0), new Position(0, 0, 0));
+        when(controller.getControllerStatus()).thenReturn(controllerStatus);
+
+        assertTrue(instance.isIdle());
+    }
+
+    @Test
+    public void isIdleShouldReturnTrueIfControllerIsInStateCheck() throws Exception {
+        // Given
+        when(controller.isCommOpen()).thenReturn(true);
+        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        ControllerStatus controllerStatus = new ControllerStatus(ControllerState.CHECK, new Position(0, 0, 0), new Position(0, 0, 0));
+        when(controller.getControllerStatus()).thenReturn(controllerStatus);
+
+        assertTrue(instance.isIdle());
+    }
+
+    @Test
+    public void isIdleShouldReturnFalseIfControllerIsInStateRun() throws Exception {
+        // Given
+        when(controller.isCommOpen()).thenReturn(true);
+        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        ControllerStatus controllerStatus = new ControllerStatus(ControllerState.RUN, new Position(0, 0, 0), new Position(0, 0, 0));
+        when(controller.getControllerStatus()).thenReturn(controllerStatus);
+
+        assertFalse(instance.isIdle());
+    }
+
+    @Test
+    public void canSendShouldReturnTrueIfIdleAndFileLoaded() throws Exception {
+        // Given
+        when(controller.isCommOpen()).thenReturn(true);
+        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        ControllerStatus controllerStatus = new ControllerStatus(ControllerState.IDLE, new Position(0, 0, 0), new Position(0, 0, 0));
+        when(controller.getControllerStatus()).thenReturn(controllerStatus);
+
+        File tempFile = File.createTempFile("ugs-", ".gcode");
+        FileUtils.writeStringToFile(tempFile, "G0 X0 Y0\n", StandardCharsets.UTF_8);
+        instance.setGcodeFile(tempFile);
+
+        assertTrue(instance.canSend());
+    }
+
+    @Test
+    public void canSendShouldReturnFalseIfIdleAndNoFileLoaded() throws Exception {
+        // Given
+        when(controller.isCommOpen()).thenReturn(true);
+        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        ControllerStatus controllerStatus = new ControllerStatus(ControllerState.IDLE, new Position(0, 0, 0), new Position(0, 0, 0));
+        when(controller.getControllerStatus()).thenReturn(controllerStatus);
+
+        assertFalse(instance.canSend());
+    }
+
+    @Test
+    public void canSendShouldReturnFalseIfNotConnectedAndFileLoaded() throws Exception {
+        // Given
+        File tempFile = File.createTempFile("ugs-", ".gcode");
+        FileUtils.writeStringToFile(tempFile, "G0 X0 Y0\n", StandardCharsets.UTF_8);
+        instance.setGcodeFile(tempFile);
+
+        assertFalse(instance.canSend());
+    }
 
     @Test
     public void disconnectShouldCloseTheConnection() throws Exception {
         // Given
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE));
 
         // When
         instance.disconnect();
@@ -250,12 +393,12 @@ public class GUIBackendTest {
         // Then
         verify(controller).closeCommPort();
         assertNull("The instance should now be null", instance.getController());
-        assertEquals(ControlState.COMM_DISCONNECTED, instance.getControlState());
+        assertEquals(CommunicatorState.COMM_DISCONNECTED, instance.getControlState());
         assertFalse(instance.isConnected());
 
         assertEquals("Only one event should have been fired", 1, eventArgumentCaptor.getAllValues().size());
-        assertTrue(eventArgumentCaptor.getValue().isStateChangeEvent());
-        assertEquals(ControlState.COMM_DISCONNECTED, eventArgumentCaptor.getValue().getControlState());
+        assertEquals(ControllerStateEvent.class, eventArgumentCaptor.getAllValues().get(0).getClass());
+        assertEquals(ControllerState.DISCONNECTED, ((ControllerStateEvent) eventArgumentCaptor.getAllValues().get(0)).getState());
     }
 
     @Test
@@ -299,15 +442,15 @@ public class GUIBackendTest {
     public void getControlStateShouldBeOkWhenConnected() throws Exception {
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
 
-        when(controller.getControlState()).thenReturn(ControlState.COMM_IDLE);
-        ControlState result = instance.getControlState();
-        assertEquals(ControlState.COMM_IDLE, result);
+        when(controller.getCommunicatorState()).thenReturn(CommunicatorState.COMM_IDLE);
+        CommunicatorState result = instance.getControlState();
+        assertEquals(CommunicatorState.COMM_IDLE, result);
     }
 
     @Test
     public void getControlStateShouldReturnStateDisconnectedWhenNotConnected() {
-        ControlState result = instance.getControlState();
-        assertEquals(ControlState.COMM_DISCONNECTED, result);
+        CommunicatorState result = instance.getControlState();
+        assertEquals(CommunicatorState.COMM_DISCONNECTED, result);
     }
 
     @Test
@@ -328,19 +471,45 @@ public class GUIBackendTest {
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
 
         File tempFile = File.createTempFile("ugs-", ".gcode");
-        FileUtils.writeStringToFile(tempFile, "G0 X0 Y0\n");
+        FileUtils.writeStringToFile(tempFile, "G0 X0 Y0\n", StandardCharsets.UTF_8);
 
         // When
         instance.setGcodeFile(tempFile);
 
         // Then
         List<UGSEvent> events = eventArgumentCaptor.getAllValues();
-        assertEquals(3, events.size());
-        assertEquals(UGSEvent.FileState.FILE_LOADING, events.get(0).getFileState());
-        assertEquals(UGSEvent.EventType.SETTING_EVENT, events.get(1).getEventType());
-        assertEquals(UGSEvent.FileState.FILE_LOADED, events.get(2).getFileState());
+        assertEquals(4, events.size());
+        assertEquals(FileState.OPENING_FILE, ((FileStateEvent) events.get(0)).getFileState());
+        assertEquals(FileState.FILE_LOADING, ((FileStateEvent) events.get(1)).getFileState());
+        assertEquals(SettingChangedEvent.class, events.get(2).getClass());
+        assertEquals(FileState.FILE_LOADED, ((FileStateEvent) events.get(3)).getFileState());
 
         assertNotNull(instance.getProcessedGcodeFile());
+    }
+
+    @Test
+    public void unsetGcodeFileShouldUnloadFile() throws Exception {
+        // Given
+        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+
+        File tempFile = File.createTempFile("ugs-", ".gcode");
+        FileUtils.writeStringToFile(tempFile, "G0 X0 Y0\n", StandardCharsets.UTF_8);
+        instance.setGcodeFile(tempFile);
+        List<UGSEvent> preEvents = eventArgumentCaptor.getAllValues();
+
+        // When
+        instance.unsetGcodeFile();
+
+        // Then
+        List<UGSEvent> events = eventArgumentCaptor.getAllValues();
+        events = events.subList(preEvents.size(), events.size());
+        assertEquals(1, events.size());
+        assertEquals(FileState.FILE_UNLOADED, ((FileStateEvent) events.get(0)).getFileState());
+
+        assertNull(instance.getProcessedGcodeFile());
+        assertNull(instance.getGcodeFile());
+        assertEquals(0, instance.getNumRemainingRows());
+        assertEquals(0, instance.getNumRows());
     }
 
     @Test(expected = IOException.class)
@@ -351,8 +520,10 @@ public class GUIBackendTest {
     }
 
     @Test
-    public void getNumRowsShouldReturnNumberFromController() throws Exception {
+    public void getNumRowsShouldReturnNumberFromControllerWhenInStateRun() throws Exception {
         // Given
+        ControllerStatus controllerStatus = new ControllerStatus(ControllerState.RUN, Position.ZERO, Position.ZERO);
+        when(controller.getControllerStatus()).thenReturn(controllerStatus);
         when(controller.rowsInSend()).thenReturn(42);
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
 
@@ -380,140 +551,163 @@ public class GUIBackendTest {
     public void setWorkPositionWithValueExpressionShouldSetPosition() throws Exception {
         // Given
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
-        ControllerStatus status = new ControllerStatus("idle", ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(11, 11,11, UnitUtils.Units.MM));
-        instance.statusStringListener(status);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE, new Position(11, 11, 11, UnitUtils.Units.MM)));
 
         // When
         instance.setWorkPositionUsingExpression(Axis.X, "10.1");
 
         // Then
-        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.X, 10.1));
+        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.X, 10.1, UnitUtils.Units.MM));
     }
 
     @Test
     public void setWorkPositionWithExpressionShouldSetPosition() throws Exception {
         // Given
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
-        ControllerStatus status = new ControllerStatus("idle", ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(11, 11,11, UnitUtils.Units.MM));
-        instance.statusStringListener(status);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE, new Position(11, 11, 11, UnitUtils.Units.MM)));
 
         // When
         instance.setWorkPositionUsingExpression(Axis.Y, "10.1 * 10");
 
         // Then
-        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Y, 101.0));
+        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Y, 101.0, UnitUtils.Units.MM));
     }
 
     @Test
     public void setWorkPositionWithExpressionShouldSetNegativePosition() throws Exception {
         // Given
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
-        ControllerStatus status = new ControllerStatus("idle", ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(11, 11,11, UnitUtils.Units.MM));
-        instance.statusStringListener(status);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE, new Position(11, 11, 11, UnitUtils.Units.MM)));
 
         // When
         instance.setWorkPositionUsingExpression(Axis.Y, "-10.1");
 
         // Then
-        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Y, -10.1));
+        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Y, -10.1, UnitUtils.Units.MM));
     }
 
     @Test
     public void setWorkPositionWithAdditionExpression() throws Exception {
         // Given
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
-        ControllerStatus status = new ControllerStatus("idle", ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(11, 11,11, UnitUtils.Units.MM));
-        instance.statusStringListener(status);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE, new Position(11, 11, 11, UnitUtils.Units.MM)));
 
         // When
         instance.setWorkPositionUsingExpression(Axis.Y, "# + 10");
 
         // Then
-        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Y, 21.0));
+        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Y, 21.0, UnitUtils.Units.MM));
     }
 
     @Test
     public void setWorkPositionWithMultiplicationExpression() throws Exception {
         // Given
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
-        ControllerStatus status = new ControllerStatus("idle", ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(11, 11,11, UnitUtils.Units.MM));
-        instance.statusStringListener(status);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE, new Position(11, 11, 11, UnitUtils.Units.MM)));
 
         // When
         instance.setWorkPositionUsingExpression(Axis.Z, "# * 10");
 
         // Then
-        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Z, 110.0));
+        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Z, 110.0, UnitUtils.Units.MM));
     }
 
     @Test
     public void setWorkPositionWithMultiplicationExpressionWithoutValue() throws Exception {
         // Given
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
-        ControllerStatus status = new ControllerStatus("idle", ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(11, 11,11, UnitUtils.Units.MM));
-        instance.statusStringListener(status);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE, new Position(11, 11, 11, UnitUtils.Units.MM)));
 
         // When
         instance.setWorkPositionUsingExpression(Axis.Z, "* 10");
 
         // Then
-        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Z, 110.0));
+        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Z, 110.0, UnitUtils.Units.MM));
     }
 
     @Test
     public void setWorkPositionWithDivisionExpression() throws Exception {
         // Given
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
-        ControllerStatus status = new ControllerStatus("idle", ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(11, 11,11, UnitUtils.Units.MM));
-        instance.statusStringListener(status);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE, new Position(11, 11, 11, UnitUtils.Units.MM)));
 
         // When
         instance.setWorkPositionUsingExpression(Axis.Z, "# / 10");
 
         // Then
-        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Z, 1.1));
+        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Z, 1.1, UnitUtils.Units.MM));
+    }
+
+    @Test
+    public void setWorkPositionWithDivisionExpressionhouldConvertHashToWorkPositionUnits() throws Exception {
+        // Given
+        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE, new Position(10, 10, 10, UnitUtils.Units.INCH)));
+
+        // When
+        instance.setWorkPositionUsingExpression(Axis.Z, "# / 10");
+
+        // Then
+        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Z, 25.4, UnitUtils.Units.MM));
     }
 
     @Test
     public void setWorkPositionWithDivisionExpressionWithoutValue() throws Exception {
         // Given
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
-        ControllerStatus status = new ControllerStatus("idle", ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(11, 11,11, UnitUtils.Units.MM));
-        instance.statusStringListener(status);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE, new Position(11, 11, 11, UnitUtils.Units.MM)));
 
         // When
         instance.setWorkPositionUsingExpression(Axis.Z, "/ 10");
 
         // Then
-        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Z, 1.1));
+        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Z, 1.1, UnitUtils.Units.MM));
+    }
+
+    @Test
+    public void setWorkPositionWithDivisionExpressionShouldConvertToWorkPositionUnits() throws Exception {
+        // Given
+        instance.connect(FIRMWARE, PORT, BAUD_RATE);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE, new Position(10, 10, 10, UnitUtils.Units.INCH)));
+
+        // When
+        instance.setWorkPositionUsingExpression(Axis.Z, "/ 10");
+
+        // Then
+        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.Z, 25.4, UnitUtils.Units.MM));
     }
 
     @Test
     public void setWorkPositionWithSubtractionExpression() throws Exception {
         // Given
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
-        ControllerStatus status = new ControllerStatus("idle", ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(11, 11,11, UnitUtils.Units.MM));
-        instance.statusStringListener(status);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE, new Position(11, 11, 11, UnitUtils.Units.MM)));
 
         // When
         instance.setWorkPositionUsingExpression(Axis.X, "# - 10");
 
         // Then
-        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.X, 1.0));
+        verify(controller, times(1)).setWorkPosition(PartialPosition.from(Axis.X, 1.0, UnitUtils.Units.MM));
     }
 
     @Test
     public void setWorkPositionMultipleAxes() throws Exception {
         // Given
         instance.connect(FIRMWARE, PORT, BAUD_RATE);
-        ControllerStatus status = new ControllerStatus("idle", ControllerState.IDLE, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(11, 11,11, UnitUtils.Units.MM));
-        instance.statusStringListener(status);
+        when(controller.getControllerStatus()).thenReturn(createControllerStatus(ControllerState.IDLE, new Position(11, 11, 11, UnitUtils.Units.MM)));
 
         // When
-        instance.setWorkPosition(new PartialPosition(25.0,99.0));
+        instance.setWorkPosition(new PartialPosition(25.0, 99.0, UnitUtils.Units.MM));
 
         // Then
-        verify(controller, times(1)).setWorkPosition(new PartialPosition(25.0,99.0));
+        verify(controller, times(1)).setWorkPosition(new PartialPosition(25.0, 99.0, UnitUtils.Units.MM));
     }
 
+    private ControllerStatus createControllerStatus(ControllerState state) {
+        return new ControllerStatus(state, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(0, 0, 0, UnitUtils.Units.MM));
+    }
+
+    private ControllerStatus createControllerStatus(ControllerState state, Position machinePosition) {
+        return new ControllerStatus(state, new Position(0, 0, 0, UnitUtils.Units.MM), machinePosition);
+    }
 }

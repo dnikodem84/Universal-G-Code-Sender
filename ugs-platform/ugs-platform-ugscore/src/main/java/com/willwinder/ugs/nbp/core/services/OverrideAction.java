@@ -18,38 +18,70 @@
  */
 package com.willwinder.ugs.nbp.core.services;
 
+import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
+import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.Overrides;
+import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
+import org.openide.util.Lookup;
 
 import javax.swing.AbstractAction;
 import java.awt.event.ActionEvent;
+import java.io.Serializable;
 
 /**
  * Defines an action for an override command
  *
  * @author wwinder
  */
-public class OverrideAction extends AbstractAction {
-    private final OverrideActionService overrideActionService;
-    private final Overrides action;
+public class OverrideAction extends AbstractAction implements Serializable {
+    private OverrideActionService overrideActionService;
+    private Overrides action;
+    private BackendAPI backend;
+
+    /**
+     * Empty constructor to be used for serialization
+     */
+    public OverrideAction() {
+    }
 
     /**
      * Constructor
      *
-     * @param overrideActionService the service for running the action
-     * @param action                the action to execute
+     * @param action the action to execute
      */
-    public OverrideAction(OverrideActionService overrideActionService, Overrides action) {
-        this.overrideActionService = overrideActionService;
+    public OverrideAction(Overrides action) {
         this.action = action;
     }
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        overrideActionService.runAction(action);
+        getOverrideActionService().runAction(action);
+    }
+
+    private OverrideActionService getOverrideActionService() {
+        if (overrideActionService == null) {
+            overrideActionService = Lookup.getDefault().lookup(OverrideActionService.class);
+        }
+        return overrideActionService;
     }
 
     @Override
     public boolean isEnabled() {
-        return overrideActionService.canRunAction();
+        return getBackend().isConnected() && getOverrideActionService().canRunAction();
+    }
+
+    private BackendAPI getBackend() {
+        if (backend == null) {
+            backend = CentralLookup.getDefault().lookup(BackendAPI.class);
+            backend.addUGSEventListener(this::onEvent);
+        }
+        return backend;
+    }
+
+    private void onEvent(UGSEvent event) {
+        if (event instanceof ControllerStateEvent) {
+            setEnabled(isEnabled());
+        }
     }
 }

@@ -4,23 +4,33 @@ import com.google.common.base.Strings;
 import org.apache.commons.lang3.builder.EqualsBuilder;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 
+import java.io.Serial;
+import java.util.Objects;
 import java.io.Serializable;
+import java.util.UUID;
 
 /**
  * Created by Phil on 9/6/2015.
  */
 public class Macro implements Serializable {
+    private String uuid = UUID.randomUUID().toString();
     private String name;
     private String description;
     private String gcode;
+    private MacroVersion version;
 
     public Macro() {
     }
 
-    public Macro(String name, String description, String gcode) {
+    public Macro(String uuid, String name, String description, String gcode) {
+        this.uuid = uuid;
         this.name = name;
         this.description = description;
         this.gcode = gcode;
+    }
+
+    public String getUuid() {
+        return uuid;
     }
 
     public String getName() {
@@ -60,13 +70,35 @@ public class Macro implements Serializable {
         this.gcode = gcode;
     }
 
+    public MacroVersion getVersion() {
+        return version;
+    }
+
+    public void setVersion(MacroVersion version) {
+        this.version = Objects.requireNonNullElse(version, MacroVersion.V1);
+    }
+
     @Override
     public String toString() {
         return "Macro{" +
+                "uuid='" + uuid + '\'' +
                 "name='" + name + '\'' +
                 ", description='" + description + '\'' +
                 ", gcode='" + gcode + '\'' +
+                ", version=" + version +
                 '}';
+    }
+
+    @Serial
+    public Object readResolve() {
+        this.version = Objects.requireNonNullElse(this.version, MacroVersion.V2);
+        return this;
+    }
+
+    @Serial
+    public Object writeReplace() {
+        this.version = Objects.requireNonNullElse(this.version, MacroVersion.V1);
+        return this;
     }
 
     @Override

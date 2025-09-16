@@ -1,5 +1,5 @@
 /*
-    Copyright 2018 Will Winder
+    Copyright 2018-2020 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -27,6 +27,7 @@ import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.Axis;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.FirmwareSettingEvent;
 import com.willwinder.universalgcodesender.utils.ThreadHelper;
 import net.miginfocom.swing.MigLayout;
 import org.openide.DialogDisplayer;
@@ -154,53 +155,28 @@ public class WizardPanelHoming extends AbstractWizardPanel implements UGSEventLi
     }
 
     private void initInvertComboBoxes() {
-        comboBoxInvertDirectionX = new JComboBox<>();
-        comboBoxInvertDirectionX.setVisible(false);
-        comboBoxInvertDirectionX.addItem("+X");
-        comboBoxInvertDirectionX.addItem("-X");
-        comboBoxInvertDirectionX.addActionListener(event -> {
-            IController controller = getBackend().getController();
-            if (controller != null) {
-                try {
-                    controller.getFirmwareSettings().setHomingDirectionInverted(Axis.X, comboBoxInvertDirectionX.getSelectedIndex() == 1);
-                } catch (FirmwareSettingsException e) {
-                    NotifyDescriptor nd = new NotifyDescriptor.Message("Unexpected error while updating setting: " + e.getMessage(), NotifyDescriptor.ERROR_MESSAGE);
-                    DialogDisplayer.getDefault().notify(nd);
-                }
-            }
-        });
+        comboBoxInvertDirectionX = createInvertComboBox(Axis.X);
+        comboBoxInvertDirectionY = createInvertComboBox(Axis.Y);
+        comboBoxInvertDirectionZ = createInvertComboBox(Axis.Z);
+    }
 
-        comboBoxInvertDirectionY = new JComboBox<>();
-        comboBoxInvertDirectionY.setVisible(false);
-        comboBoxInvertDirectionY.addItem("+Y");
-        comboBoxInvertDirectionY.addItem("-Y");
-        comboBoxInvertDirectionY.addActionListener(event -> {
+    private JComboBox<String> createInvertComboBox(Axis axis) {
+        JComboBox<String> result = new JComboBox<>();
+        result.setVisible(false);
+        result.addItem("+" + axis.name());
+        result.addItem("-" + axis.name());
+        result.addActionListener(event -> {
             IController controller = getBackend().getController();
             if (controller != null) {
                 try {
-                    controller.getFirmwareSettings().setHomingDirectionInverted(Axis.Y, comboBoxInvertDirectionY.getSelectedIndex() == 1);
+                    controller.getFirmwareSettings().setHomingDirectionInverted(axis, result.getSelectedIndex() == 1);
                 } catch (FirmwareSettingsException e) {
                     NotifyDescriptor nd = new NotifyDescriptor.Message("Unexpected error while updating setting: " + e.getMessage(), NotifyDescriptor.ERROR_MESSAGE);
                     DialogDisplayer.getDefault().notify(nd);
                 }
             }
         });
-
-        comboBoxInvertDirectionZ = new JComboBox<>();
-        comboBoxInvertDirectionZ.setVisible(false);
-        comboBoxInvertDirectionZ.addItem("+Z");
-        comboBoxInvertDirectionZ.addItem("-Z");
-        comboBoxInvertDirectionZ.addActionListener(event -> {
-            IController controller = getBackend().getController();
-            if (controller != null) {
-                try {
-                    controller.getFirmwareSettings().setHomingDirectionInverted(Axis.Z, comboBoxInvertDirectionZ.getSelectedIndex() == 1);
-                } catch (FirmwareSettingsException e) {
-                    NotifyDescriptor nd = new NotifyDescriptor.Message("Unexpected error while updating setting: " + e.getMessage(), NotifyDescriptor.ERROR_MESSAGE);
-                    DialogDisplayer.getDefault().notify(nd);
-                }
-            }
-        });
+        return result;
     }
 
     @Override
@@ -289,7 +265,7 @@ public class WizardPanelHoming extends AbstractWizardPanel implements UGSEventLi
 
     @Override
     public void UGSEvent(UGSEvent event) {
-        if (event.isFirmwareSettingEvent()) {
+        if (event instanceof FirmwareSettingEvent) {
             refreshControls();
         }
     }

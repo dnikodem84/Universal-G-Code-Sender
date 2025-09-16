@@ -1,5 +1,5 @@
 /*
-    Copyright 2013-2018 Will Winder
+    Copyright 2013-2024 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -19,6 +19,7 @@
 
 package com.willwinder.universalgcodesender.connection;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -37,13 +38,13 @@ public interface Connection {
 
     /**
      * Sets the connection URI for the hardware and driver to connect with.
-     *
+     * <p>
      * Example with a serial port using the JSSC driver and baud rate 9600
      * jssc://dev/tty.usbmodem1421:9600
-     *
+     * <p>
      * Example with a serial port using the JSerialComm driver and baud rate 115200
      * jserialcomm://tty.usbmodem1421:115200
-     *
+     * <p>
      * Example with a TCP port using TCPConnection driver to example.com and port 9001
      * tcp://example.com:9001
      *
@@ -89,9 +90,27 @@ public interface Connection {
     boolean isOpen();
 
     /**
-     * Returns a list of all port names available
+     * Returns a list of all available connection devices
      *
-     * @return a list of available port names
+     * @return a list of available connection devices
      */
-    List<String> getPortNames();
+    List<? extends IConnectionDevice> getDevices();
+
+    /**
+     * Enters a mode for receiving using the xmodem protocol and return the file stream as an byte array.
+     * This mode will block until the file stream has been received or until the protocol times out or an error occurs.
+     *
+     * @return a byte array with the received file
+     * @throws IOException if there is a protocol error or a timeout occurs.
+     */
+    byte[] xmodemReceive() throws IOException;
+
+    /**
+     * Enters a mode for sending file data using the xmodem. This mode will block until the file stream has been sent
+     * or until the protocol times out or an error occurs.
+     *
+     * @param data the raw file data to send
+     * @throws IOException if there is a protocol error or a timeout occurs.
+     */
+    void xmodemSend(byte[] data) throws IOException;
 }

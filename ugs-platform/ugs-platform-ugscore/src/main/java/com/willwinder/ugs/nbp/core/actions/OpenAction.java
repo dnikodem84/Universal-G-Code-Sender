@@ -1,5 +1,5 @@
 /*
-    Copywrite 2015-2018 Will Winder
+    Copyright 2015-2024 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -18,26 +18,29 @@
  */
 package com.willwinder.ugs.nbp.core.actions;
 
+import com.willwinder.ugs.nbp.core.services.FileFilterService;
 import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.ugs.nbp.lib.services.LocalizingService;
 import com.willwinder.universalgcodesender.model.BackendAPI;
-import com.willwinder.universalgcodesender.utils.GUIHelpers;
-import com.willwinder.universalgcodesender.utils.SwingHelpers;
+import com.willwinder.universalgcodesender.uielements.FileOpenDialog;
 import org.openide.awt.ActionID;
 import org.openide.awt.ActionReference;
 import org.openide.awt.ActionReferences;
 import org.openide.awt.ActionRegistration;
 import org.openide.util.ImageUtilities;
+import org.openide.util.Lookup;
+import org.openide.windows.WindowManager;
 
-import javax.swing.*;
+import javax.swing.AbstractAction;
 import java.awt.event.ActionEvent;
+import java.io.File;
 
 @ActionID(
         category = LocalizingService.OpenCategory,
         id = LocalizingService.OpenActionId)
 @ActionRegistration(
         iconBase = OpenAction.ICON_BASE,
-        displayName = "resources.MessagesBundle#" + LocalizingService.OpenTitleKey,
+        displayName = "resources/MessagesBundle#" + LocalizingService.OpenTitleKey,
         lazy = false)
 @ActionReferences({
         @ActionReference(
@@ -52,16 +55,25 @@ import java.awt.event.ActionEvent;
 })
 public final class OpenAction extends AbstractAction {
 
-    public static final String ICON_BASE = "resources/icons/open.png";
-    private BackendAPI backend;
+    public static final String ICON_BASE = "resources/icons/open.svg";
+    private final transient FileFilterService fileFilterService;
+    private final transient BackendAPI backend;
+    private final FileOpenDialog fileOpenDialog;
 
     public OpenAction() {
+        this(CentralLookup.getDefault().lookup(BackendAPI.class).getSettings().getLastOpenedFilename());
+    }
+
+    public OpenAction(String directory) {
         this.backend = CentralLookup.getDefault().lookup(BackendAPI.class);
+        this.fileFilterService = Lookup.getDefault().lookup(FileFilterService.class);
 
         putValue("iconBase", ICON_BASE);
         putValue(SMALL_ICON, ImageUtilities.loadImageIcon(ICON_BASE, false));
         putValue("menuText", LocalizingService.OpenTitle);
         putValue(NAME, LocalizingService.OpenTitle);
+
+        fileOpenDialog = new FileOpenDialog(directory);
     }
 
     @Override
@@ -71,9 +83,14 @@ public final class OpenAction extends AbstractAction {
 
     @Override
     public void actionPerformed(ActionEvent e) {
-        String sourceDir = backend.getSettings().getLastOpenedFilename();
-        SwingHelpers
-                .openFile(sourceDir)
-                .ifPresent(f -> GUIHelpers.openGcodeFile(f, backend));
+        fileOpenDialog.setFilenameFilter(fileFilterService.getFilenameFilters());
+        fileOpenDialog.centerOn(WindowManager.getDefault().getMainWindow());
+        fileOpenDialog.setVisible(true);
+        fileOpenDialog.getSelectedFile().ifPresent(this::openFile);
+    }
+
+    public void openFile(File selectedFile) {
+        OpenFileAction action = new OpenFileAction(selectedFile);
+        action.actionPerformed(null);
     }
 }

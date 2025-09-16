@@ -18,7 +18,7 @@ import java.awt.event.ActionEvent;
         id = LocalizingService.EditMacrosActionId)
 @ActionRegistration(
         iconBase = EditMacrosAction.ICON_BASE,
-        displayName = "resources.MessagesBundle#" + LocalizingService.EditMacrosTitleKey,
+        displayName = "resources/MessagesBundle#" + LocalizingService.EditMacrosTitleKey,
         lazy = false)
 @ActionReferences({
         @ActionReference(
@@ -26,7 +26,7 @@ import java.awt.event.ActionEvent;
                 position = 2030)
 })
 public class EditMacrosAction extends AbstractAction {
-    public static final String ICON_BASE = "resources/icons/macro.png";
+    public static final String ICON_BASE = "resources/icons/macro.svg";
 
     public EditMacrosAction() {
         putValue("iconBase", ICON_BASE);

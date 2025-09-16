@@ -18,7 +18,6 @@
  */
 package com.willwinder.ugs.nbp.setupwizard;
 
-import com.willwinder.universalgcodesender.IController;
 import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 
@@ -35,15 +34,11 @@ public class WizardUtils {
      * @param backendAPI the backend to use for handling the alarm
      */
     public static void killAlarm(BackendAPI backendAPI) {
-        IController controller = backendAPI.getController();
-        if (controller != null) {
-            ControllerState state = controller.getControllerStatus().getState();
-            if (state == ControllerState.ALARM) {
-                try {
-                    controller.killAlarmLock();
-                } catch (Exception ignore) {
-                    // Ignored
-                }
+        if (backendAPI.getControllerState() == ControllerState.ALARM) {
+            try {
+                backendAPI.killAlarmLock();
+            } catch (Exception ignore) {
+                // Ignored
             }
         }
     }

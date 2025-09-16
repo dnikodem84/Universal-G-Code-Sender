@@ -1,5 +1,5 @@
 /*
-Copyright 2017-2018 Will Winder
+Copyright 2017-2023 Will Winder
 
 This file is part of Universal Gcode Sender (UGS).
 
@@ -18,34 +18,32 @@ along with UGS.  If not, see <http://www.gnu.org/licenses/>.
 */
 package com.willwinder.ugs.nbp.core.actions;
 
+import com.willwinder.ugs.nbp.core.ui.PortComboBox;
 import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.ugs.nbp.lib.services.LocalizingService;
-import com.willwinder.universalgcodesender.connection.ConnectionFactory;
+import com.willwinder.universalgcodesender.connection.ConnectionDriver;
 import com.willwinder.universalgcodesender.i18n.Localization;
+import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
-import static com.willwinder.universalgcodesender.utils.GUIHelpers.displayErrorDialog;
-import java.awt.Component;
-import java.awt.FlowLayout;
-import java.util.List;
-import javax.swing.ImageIcon;
-import javax.swing.JButton;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
-import org.apache.commons.lang3.StringUtils;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
+import com.willwinder.universalgcodesender.model.events.SettingChangedEvent;
 import org.openide.awt.ActionID;
 import org.openide.awt.ActionReference;
 import org.openide.awt.ActionReferences;
 import org.openide.awt.ActionRegistration;
-import org.openide.util.Exceptions;
 import org.openide.util.HelpCtx;
 import org.openide.util.ImageUtilities;
 import org.openide.util.actions.CallableSystemAction;
 
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import java.awt.Component;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+
 /**
- *
  * @author wwinder
  */
 @ActionID(
@@ -53,7 +51,7 @@ import org.openide.util.actions.CallableSystemAction;
         id = LocalizingService.ConnectionSerialPortToolbarActionId)
 @ActionRegistration(
         iconBase = PortAction.ICON_BASE,
-        displayName = "resources.MessagesBundle#" + LocalizingService.ConnectionSerialPortToolbarTitleKey,
+        displayName = "resources/MessagesBundle#" + LocalizingService.ConnectionSerialPortToolbarTitleKey,
         lazy = false)
 @ActionReferences({
         @ActionReference(
@@ -61,53 +59,19 @@ import org.openide.util.actions.CallableSystemAction;
                 position = 990)
 })
 public class PortAction extends CallableSystemAction implements UGSEventListener {
-    static final String ICON_BASE = "resources/icons/serialport.png";
-    static private final String REFRESH_ICON = "resources/icons/refresh.gif";
+    protected static final String ICON_BASE = "resources/icons/serialport.svg";
 
-    private ImageIcon refreshIcon = null;
+    private final transient BackendAPI backend;
+    private PortComboBox portCombo;
+    private JPanel panel;
+    private JLabel portLabel;
 
-
-    private final BackendAPI backend;
-    private final Component c;
-    private final JButton refreshButton = new JButton();
-    private final JComboBox<String> portCombo = new JComboBox<>();
-
-    public PortAction(){
+    public PortAction() {
         this.backend = CentralLookup.getDefault().lookup(BackendAPI.class);
         this.backend.addUGSEventListener(this);
 
         putValue(SMALL_ICON, ImageUtilities.loadImageIcon(ICON_BASE, false));
         putValue(NAME, LocalizingService.ConnectionSerialPortToolbarTitle);
-
-        try {
-            refreshIcon = new ImageIcon(this.getClass().getClassLoader().getResource(REFRESH_ICON));
-        } catch (Exception ex) {
-            Exceptions.printStackTrace(ex);
-        }
-
-
-        portCombo.setEditable(true);
-        refreshButton.setIcon(refreshIcon);
-
-        JPanel panel = new JPanel(new FlowLayout());
-        panel.add(new JLabel(Localization.getString("mainWindow.swing.portLabel")));
-        panel.add(refreshButton);
-        panel.add(portCombo);
-        c = panel;
-
-        updatePort();
-
-        portCombo.addActionListener(e ->this.performAction());
-        refreshButton.addActionListener(e -> loadPortSelector());
-    }
-
-    private void updatePort() {
-        portCombo.setSelectedItem(this.backend.getSettings().getPort());
-    }
-
-    @Override
-    public void performAction() {
-        backend.getSettings().setPort(portCombo.getSelectedItem() + "");
     }
 
     @Override
@@ -117,43 +81,72 @@ public class PortAction extends CallableSystemAction implements UGSEventListener
 
     @Override
     public HelpCtx getHelpCtx() {
-        return null; // new HelpCtx("...ID") if you have a help set
+        return null;
     }
+
 
     @Override
     public void UGSEvent(UGSEvent evt) {
-        // If a setting has changed elsewhere, update the combo boxes.
-        if (evt.isSettingChangeEvent()) {
-            updatePort();
+        initializeComponents();
+
+        // If a setting has changed elsewhere, update the combo box.
+        if (evt instanceof SettingChangedEvent) {
+            updatePortSettings();
         }
 
         // if the state has changed, check if the baud box should be displayed.
-        else if (evt.isStateChangeEvent()) {
-            c.setVisible(!backend.isConnected());
+        else if (evt instanceof ControllerStateEvent) {
+            ControllerState currentState = backend.getControllerState();
+            panel.setVisible(currentState == ControllerState.DISCONNECTED);
+
+            // Start stop the refresh thread
+            if (currentState == ControllerState.DISCONNECTED) {
+                portCombo.startRefreshing();
+            } else {
+                portCombo.stopRefreshing();
+            }
         }
     }
-    
+
+    private void updatePortSettings() {
+        portCombo.setSelectedItem(backend.getSettings().getPort());
+        if (backend.getSettings().getConnectionDriver() == ConnectionDriver.TCP || backend.getSettings().getConnectionDriver() == ConnectionDriver.WS) {
+            portLabel.setText(Localization.getString("mainWindow.swing.hostLabel"));
+        } else {
+            portLabel.setText(Localization.getString("mainWindow.swing.portLabel"));
+        }
+    }
+
     @Override
     public Component getToolbarPresenter() {
-        return c;
+        initializeComponents();
+        return panel;
     }
 
-    private void loadPortSelector() {
-        portCombo.removeAllItems();
-        List<String> portList = ConnectionFactory.getPortNames(backend.getSettings().getConnectionDriver());
-        if (portList.size() < 1) {
-            if (backend.getSettings().isShowSerialPortWarning()) {
-                displayErrorDialog(Localization.getString("mainWindow.error.noSerialPort"));
-            }
-        } else {
-            for (String port : portList) {
-                if (StringUtils.isNotEmpty(port)) {
-                    portCombo.addItem(port);
-                }
-            }
+    @Override
+    public void performAction() {
+        // Not used
+    }
 
-            portCombo.setSelectedIndex(0);
-            portCombo.repaint();
+    private void initializeComponents() {
+        if (panel != null) {
+            return;
         }
+
+        portCombo = new PortComboBox(backend);
+        setMaximumWidth(portCombo, 150);
+
+        portLabel = new JLabel(Localization.getString("mainWindow.swing.portLabel"));
+
+        panel = new JPanel(new FlowLayout());
+        panel.setOpaque(false);
+        panel.add(portLabel);
+        panel.add(portCombo);
+    }
+
+    private void setMaximumWidth(Component component, int width) {
+        Dimension maximumSize = component.getPreferredSize();
+        maximumSize.setSize(width, maximumSize.getHeight());
+        component.setPreferredSize(maximumSize);
     }
 }

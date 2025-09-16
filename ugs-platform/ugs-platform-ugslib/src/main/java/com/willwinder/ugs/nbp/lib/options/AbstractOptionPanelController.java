@@ -1,5 +1,5 @@
 /*
-    Copywrite 2016 Will Winder
+    Copyright 2016 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -42,18 +42,18 @@ public abstract class AbstractOptionPanelController<T extends AbstractOptionsPan
 
     @Override
     public void applyChanges() {
-        SwingUtilities.invokeLater(new Runnable() {
-            @Override
-            public void run() {
-                getPanel().store();
-                changed = false;
-            }
+        SwingUtilities.invokeLater(() -> {
+            getPanel().store();
+            changed = false;
         });
     }
 
     @Override
     public void cancel() {
-        // need not do anything special, if no changes have been persisted yet
+        SwingUtilities.invokeLater(() -> {
+            getPanel().cancel();
+            changed = false;
+        });
     }
 
     @Override
@@ -87,14 +87,6 @@ public abstract class AbstractOptionPanelController<T extends AbstractOptionsPan
     }
 
     public abstract T getPanel();
-    /*
-    {
-        if (panel == null) {
-            panel = new SenderOptionsPanel(this);
-        }
-        return panel;
-    }
-    */
 
     public void changed() {
         if (!changed) {

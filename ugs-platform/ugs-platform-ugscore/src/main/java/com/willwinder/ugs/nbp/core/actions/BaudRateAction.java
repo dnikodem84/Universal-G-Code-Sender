@@ -1,5 +1,5 @@
 /*
-Copyright 2017 Will Winder
+Copyright 2017-2023 Will Winder
 
 This file is part of Universal Gcode Sender (UGS).
 
@@ -18,18 +18,16 @@ along with UGS.  If not, see <http://www.gnu.org/licenses/>.
 */
 package com.willwinder.ugs.nbp.core.actions;
 
+import com.willwinder.ugs.nbp.core.ui.BaudComboBox;
 import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.ugs.nbp.lib.services.LocalizingService;
+import com.willwinder.universalgcodesender.connection.ConnectionDriver;
 import com.willwinder.universalgcodesender.i18n.Localization;
+import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
-import com.willwinder.universalgcodesender.model.BaudRateEnum;
 import com.willwinder.universalgcodesender.model.UGSEvent;
-import java.awt.Component;
-import java.awt.FlowLayout;
-import javax.swing.JComboBox;
-import javax.swing.JLabel;
-import javax.swing.JPanel;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
 import org.openide.awt.ActionID;
 import org.openide.awt.ActionReference;
 import org.openide.awt.ActionReferences;
@@ -38,8 +36,12 @@ import org.openide.util.HelpCtx;
 import org.openide.util.ImageUtilities;
 import org.openide.util.actions.CallableSystemAction;
 
+import javax.swing.JLabel;
+import javax.swing.JPanel;
+import java.awt.Component;
+import java.awt.FlowLayout;
+
 /**
- *
  * @author wwinder
  */
 @ActionID(
@@ -47,7 +49,7 @@ import org.openide.util.actions.CallableSystemAction;
         id = LocalizingService.ConnectionBaudRateToolbarActionId)
 @ActionRegistration(
         iconBase = BaudRateAction.ICON_BASE,
-        displayName = "resources.MessagesBundle#" + LocalizingService.ConnectionBaudRateToolbarTitleKey,
+        displayName = "resources/MessagesBundle#" + LocalizingService.ConnectionBaudRateToolbarTitleKey,
         lazy = false)
 @ActionReferences({
         @ActionReference(
@@ -55,38 +57,29 @@ import org.openide.util.actions.CallableSystemAction;
                 position = 995)
 })
 public class BaudRateAction extends CallableSystemAction implements UGSEventListener {
-    public static final String ICON_BASE = "resources/icons/baudrate.png";
+    public static final String ICON_BASE = "resources/icons/baudrate.svg";
 
-    private final BackendAPI backend;
-    private final Component c;
-    private final JComboBox<String> baudCombo = new JComboBox<>();
+    private final transient BackendAPI backend;
+    private Component toolbarComponent;
+    private BaudComboBox baudCombo;
+    private JLabel baudLabel = new JLabel();
 
-    public BaudRateAction(){
+    public BaudRateAction() {
         this.backend = CentralLookup.getDefault().lookup(BackendAPI.class);
         this.backend.addUGSEventListener(this);
 
+        putValue("iconBase", ICON_BASE);
         putValue(SMALL_ICON, ImageUtilities.loadImageIcon(ICON_BASE, false));
+        putValue(LARGE_ICON_KEY, ImageUtilities.loadImageIcon(ICON_BASE, false));
         putValue(NAME, LocalizingService.ConnectionBaudRateToolbarTitle);
-
-
-        // Baud rate options.
-        baudCombo.setEditable(true);
-        baudCombo.setModel(new javax.swing.DefaultComboBoxModel<>(BaudRateEnum.getAllBaudRates()));
-        baudCombo.setSelectedIndex(6);
-        baudCombo.setToolTipText("Select baudrate to use for the serial port.");
-
-        baudCombo.addActionListener(e ->this.performAction());
-
-        JPanel panel = new JPanel(new FlowLayout());
-        panel.add(new JLabel(Localization.getString("mainWindow.swing.baudLabel")));
-        panel.add(baudCombo);
-        c = panel;
-
-        updateBaudRate();
     }
 
     private void updateBaudRate() {
-        baudCombo.setSelectedItem(this.backend.getSettings().getPortRate());
+        if (backend.getSettings().getConnectionDriver() == ConnectionDriver.TCP || backend.getSettings().getConnectionDriver() == ConnectionDriver.WS) {
+            baudLabel.setText(Localization.getString("mainWindow.swing.portLabel"));
+        } else {
+            baudLabel.setText(Localization.getString("mainWindow.swing.baudLabel"));
+        }
     }
 
     @Override
@@ -101,24 +94,32 @@ public class BaudRateAction extends CallableSystemAction implements UGSEventList
 
     @Override
     public HelpCtx getHelpCtx() {
-        return null; // new HelpCtx("...ID") if you have a help set
+        return null;
     }
 
     @Override
     public void UGSEvent(UGSEvent evt) {
-        // If a setting has changed elsewhere, update the combo boxes.
-        if (evt.isSettingChangeEvent()) {
+        // if the state has changed, check if the baud box should be displayed.
+        if (toolbarComponent != null && evt instanceof ControllerStateEvent) {
+            toolbarComponent.setVisible(backend.getControllerState() == ControllerState.DISCONNECTED);
+        }
+    }
+
+    @Override
+    public Component getToolbarPresenter() {
+        if (toolbarComponent == null) {
+            // Baud rate options.
+            baudCombo = new BaudComboBox(backend);
+            baudLabel = new JLabel();
+
+            JPanel panel = new JPanel(new FlowLayout());
+            panel.add(baudLabel);
+            panel.add(baudCombo);
+            toolbarComponent = panel;
+
             updateBaudRate();
         }
 
-        // if the state has changed, check if the baud box should be displayed.
-        else if (evt.isStateChangeEvent()) {
-            c.setVisible(!backend.isConnected());
-        }
-    }
-    
-    @Override
-    public Component getToolbarPresenter() {
-        return c;
+        return toolbarComponent;
     }
 }

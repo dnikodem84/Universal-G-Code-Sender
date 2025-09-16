@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2018 Will Winder
+    Copyright 2016-2023 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -18,32 +18,32 @@
  */
 package com.willwinder.universalgcodesender.uielements.components;
 
+import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
+import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
+import com.willwinder.universalgcodesender.utils.CommandHistory;
 import com.willwinder.universalgcodesender.utils.GUIHelpers;
-import static com.willwinder.universalgcodesender.utils.GUIHelpers.displayErrorDialog;
+import org.apache.commons.lang3.StringUtils;
+
+import javax.swing.JTextField;
 import java.awt.KeyEventDispatcher;
 import java.awt.KeyboardFocusManager;
 import java.awt.event.ActionEvent;
 import java.awt.event.KeyEvent;
-import java.util.ArrayList;
-import java.util.List;
-import javax.swing.JTextField;
-import org.apache.commons.lang3.StringUtils;
+
+import static com.willwinder.universalgcodesender.utils.GUIHelpers.displayErrorDialog;
 
 /**
- *
  * @author wwinder
  */
 public class CommandTextArea extends JTextField implements KeyEventDispatcher, UGSEventListener {
-    private BackendAPI backend;
-    private List<String> commandHistory = new ArrayList<>();
-    private int commandNum = -1;
-
+    public static final String PLACEHOLDER_TEXT = " >\t";
+    private final transient CommandHistory commandHistory = new CommandHistory();
     // This is needed for unit testing.
     protected boolean focusNotNeeded = false;
-
+    private transient BackendAPI backend;
     /**
      * A variable that indicates if the focus should be regained to this component when
      * its state changes from enabled with focus -> disabled -> enabled.
@@ -56,6 +56,10 @@ public class CommandTextArea extends JTextField implements KeyEventDispatcher, U
 
     public CommandTextArea(BackendAPI backend) {
         init(backend);
+
+        // Make it possible to send multiple lines
+        getDocument().putProperty("filterNewlines", Boolean.FALSE);
+        addFocusListener(new TextFieldPlaceholderFocusListener(this, PLACEHOLDER_TEXT));
     }
 
     public final void init(BackendAPI backend) {
@@ -65,9 +69,9 @@ public class CommandTextArea extends JTextField implements KeyEventDispatcher, U
             this.setEnabled(backend.isConnected());
         }
 
-        this.addActionListener((ActionEvent evt) -> action(evt));
+        addActionListener(this::action);
         KeyboardFocusManager.getCurrentKeyboardFocusManager()
-            .addKeyEventDispatcher(this);
+                .addKeyEventDispatcher(this);
     }
 
     /**
@@ -75,11 +79,13 @@ public class CommandTextArea extends JTextField implements KeyEventDispatcher, U
      */
     @Override
     public void UGSEvent(UGSEvent evt) {
-        if (evt.isStateChangeEvent()) {
-            if (!backend.isIdle() && isEnabled()) {
+        if (evt instanceof ControllerStateEvent) {
+            ControllerState state = backend.getControllerState();
+            boolean isIdle = (state == ControllerState.IDLE || state == ControllerState.ALARM || state == ControllerState.CHECK);
+            if (!isIdle && isEnabled()) {
                 regainFocus = hasFocus();
                 setEnabled(false);
-            } else if (backend.isIdle() && !isEnabled()) {
+            } else if (isIdle && !isEnabled()) {
                 setEnabled(true);
                 if (regainFocus) {
                     regainFocus = false;
@@ -90,66 +96,49 @@ public class CommandTextArea extends JTextField implements KeyEventDispatcher, U
     }
 
     public void action(ActionEvent evt) {
-        final String str = getText().replaceAll("(\\r\\n|\\n\\r|\\r|\\n)", "");
-        if (!StringUtils.isEmpty(str)) {
-            GUIHelpers.invokeLater(() -> {
-                try {
-                    backend.sendGcodeCommand(str);
-                } catch (Exception ex) {
-                    displayErrorDialog(ex.getMessage());
-                }
-            });
+        final String commands = getText().replaceAll("(\\r\\n|\\n\\r|\\r)", "\n");
+        GUIHelpers.invokeLater(() -> {
+            try {
+                sendCommands(StringUtils.split(commands, "\n"));
+            } catch (Exception ex) {
+                displayErrorDialog(ex.getMessage());
+            }
+        });
 
-            setText("");
-            this.commandHistory.add(str);
-            this.commandNum = -1;
+        setText("");
+        commandHistory.add(commands);
+    }
+
+    private void sendCommands(String[] commands) throws Exception {
+        if (commands.length == 0) {
+            backend.sendGcodeCommand("");
+        } else {
+            for (String command : commands) {
+                backend.sendGcodeCommand(command);
+            }
         }
     }
-    
+
     private boolean isArrowKey(KeyEvent e) {
-        switch (e.getKeyCode()) {
-                case KeyEvent.VK_UP:
-                case KeyEvent.VK_DOWN:
-                    return true;
-                default:
-                    return false;
-        }
+        return switch (e.getKeyCode()) {
+            case KeyEvent.VK_UP, KeyEvent.VK_DOWN -> true;
+            default -> false;
+        };
     }
+
     /**
      * The up/down keyboard events cycle through previous commands.
      */
     @Override
     public boolean dispatchKeyEvent(KeyEvent e) {
         if (e.getID() == KeyEvent.KEY_PRESSED
-                && commandHistory.size() > 0
                 && (this.hasFocus() || focusNotNeeded)
                 && isArrowKey(e)) {
-            boolean pressed = false;
-            
+
             if (e.getKeyCode() == KeyEvent.VK_UP) {
-                pressed = true;
-                commandNum++;
-            }
-            else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
-                pressed = true;
-                commandNum--;
-            }
-
-            if (pressed) {
-                if (commandNum < 0) {
-                    commandNum = -1;
-                    setText("");
-                    java.awt.Toolkit.getDefaultToolkit().beep();
-                    return true;
-                } else if (commandNum > (commandHistory.size()-1)) {
-                    commandNum = commandHistory.size()-1;
-                    java.awt.Toolkit.getDefaultToolkit().beep();
-                }
-
-                // Get index from end.
-                int index = commandHistory.size() - 1 - commandNum;
-                String text = this.commandHistory.get(index);
-                setText(text);
+                setText(commandHistory.previous());
+            } else if (e.getKeyCode() == KeyEvent.VK_DOWN) {
+                setText(commandHistory.next());
             }
 
             return true;

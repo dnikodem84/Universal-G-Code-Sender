@@ -2,7 +2,7 @@
  * Used by the gcode parser to preprocess commands.
  */
 /*
-    Copywrite 2016 Will Winder
+    Copyright 2016-2020 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -44,4 +44,9 @@ public interface CommandProcessor {
      * @return 
      */
     String getHelp();
+
+    /**
+     * Called before a new file is processed to allow the processor to reset any state about the processed file.
+     */
+    default void reset() {}
 }

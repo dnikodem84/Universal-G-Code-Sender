@@ -1,5 +1,5 @@
 /*
-    Copyright 2015-2018 Will Winder
+    Copyright 2015-2023 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -21,9 +21,12 @@ package com.willwinder.universalgcodesender.model;
 
 import com.willwinder.universalgcodesender.IController;
 import com.willwinder.universalgcodesender.gcode.GcodeParser;
+import com.willwinder.universalgcodesender.gcode.GcodeStats;
+import com.willwinder.universalgcodesender.gcode.ICommandCreator;
+import com.willwinder.universalgcodesender.gcode.processors.CommandProcessor;
+import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.MessageListener;
 import com.willwinder.universalgcodesender.listeners.MessageType;
-import com.willwinder.universalgcodesender.model.UnitUtils.Units;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
 import com.willwinder.universalgcodesender.utils.Settings;
 
@@ -34,8 +37,27 @@ import java.util.List;
  * API used by front ends to interface with the model.
  */
 public interface BackendAPI extends BackendAPIReadOnly {
-    // Config options
+    /**
+     * Sets and loads a new gcode file, resets the parser and its processors.
+     *
+     * @param file the file to load
+     * @throws Exception
+     */
     void setGcodeFile(File file) throws Exception;
+
+    /**
+     * Resets the backend and unloads the currently loaded gcode file
+     *
+     * @throws Exception
+     */
+    void unsetGcodeFile() throws Exception;
+
+    /**
+     * Reloads the currently loaded gcode file. This will retain the current parser and its processors.
+     *
+     * @throws Exception
+     */
+    void reloadGcodeFile() throws Exception;
 
     /**
      * Returns a list of files from the configured workspace directory
@@ -58,9 +80,27 @@ public interface BackendAPI extends BackendAPIReadOnly {
      * Modify the currently processed gcode with a provided gcode parser.
      * This can be used for post-processing tasks like rotating a gcode file.
      * @param gcp externally configured gcode parser.
-     * @throws Exception 
+     * @throws Exception
+     * @deprecated this will alter the gcode parser entirely, please use {@link #applyCommandProcessor(CommandProcessor)}
+     * to change the behaviour of the gcode parser.
      */
     void applyGcodeParser(GcodeParser gcp) throws Exception;
+
+    /**
+     * Adds a command processor and applies it to currently loaded program.
+     *
+     * @param commandProcessor a command processor.
+     * @throws Exception
+     */
+    void applyCommandProcessor(CommandProcessor commandProcessor) throws Exception;
+
+    /**
+     * Removes a command processor.
+     *
+     * @param commandProcessor a command processor.
+     * @throws Exception
+     */
+    void removeCommandProcessor(CommandProcessor commandProcessor) throws Exception;
 
     /**
      * Process the currently loaded gcode file and export it to a file.
@@ -75,7 +115,17 @@ public interface BackendAPI extends BackendAPIReadOnly {
     void sendGcodeCommand(String commandText) throws Exception;
     void sendGcodeCommand(boolean restoreParserState, String commandText) throws Exception;
     void sendGcodeCommand(GcodeCommand command) throws Exception;
-    void adjustManualLocation(int dirX, int dirY, int dirZ, double stepSize, double feedRate, Units units) throws Exception;
+    GcodeStats getGcodeStats();
+
+    /**
+     * Jogs the machine by a specified direction given by the partial position.
+     * The distance is specified by the given units and can be a positive or negative value.
+     *
+     * @param distance how long to jog along the different axes.
+     * @param feedRate how fast should we jog in the given direction
+     * @throws Exception if something went wrong when jogging
+     */
+    void adjustManualLocation(PartialPosition distance, double feedRate) throws Exception;
 
     void probe(String axis, double feedRate, double distance, UnitUtils.Units units) throws Exception;
     void offsetTool(String axis, double offset, UnitUtils.Units units) throws Exception;
@@ -118,11 +168,15 @@ public interface BackendAPI extends BackendAPIReadOnly {
     void issueSoftReset() throws Exception;
     void requestParserState() throws Exception;
 
-    // Programatically call an override.
-    void sendOverrideCommand(Overrides override) throws Exception;
-           
-    // Shouldn't be needed often.
     IController getController();
+
+    /**
+     * Returns the current controller state. If no controller is loaded or if it
+     * is disconnected it will return {@link ControllerState#DISCONNECTED}
+     *
+     * @return the controller state
+     */
+    ControllerState getControllerState();
     void applySettingsToController(Settings settings, IController controller) throws Exception;
 
     /**
@@ -132,4 +186,18 @@ public interface BackendAPI extends BackendAPIReadOnly {
      * @param message the message to be written
      */
     void dispatchMessage(MessageType messageType, String message);
+
+    /**
+     * Opens the door on the machine
+     *
+     * @throws Exception
+     */
+    void openDoor() throws Exception;
+
+    /**
+     * Returns the current command creator for the connected controller or a default one if not connected.
+     *
+     * @return a command creator
+     */
+    ICommandCreator getCommandCreator();
 }

@@ -3,7 +3,7 @@
  */
 
 /*
-    Copywrite 2013-2016 Will Winder
+    Copyright 2013-2016 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -23,7 +23,7 @@
 
 package com.willwinder.universalgcodesender.mockobjects;
 
-import com.willwinder.universalgcodesender.GrblCommunicator;
+import com.willwinder.universalgcodesender.communicator.GrblCommunicator;
 import com.willwinder.universalgcodesender.connection.ConnectionDriver;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
 import com.willwinder.universalgcodesender.utils.IGcodeStreamReader;
@@ -56,6 +56,7 @@ public class MockGrblCommunicator extends GrblCommunicator {
     public int numPauseSendCalls;
     public int numResumeSendCalls;
     public int numCancelSendCalls;
+    public int numResetBuffersCalls;
     private IGcodeStreamReader gcodeStreamReader;
 
     public void resetInputsAndFunctionCalls() {
@@ -74,6 +75,7 @@ public class MockGrblCommunicator extends GrblCommunicator {
         this.numPauseSendCalls = 0;
         this.numResumeSendCalls = 0;
         this.numCancelSendCalls = 0;
+        this.numResetBuffersCalls = 0;
     }
     
     public MockGrblCommunicator() {
@@ -152,5 +154,10 @@ public class MockGrblCommunicator extends GrblCommunicator {
     @Override
     public void cancelSend() {
         this.numCancelSendCalls++;
+    }
+
+    @Override
+    public void resetBuffers() {
+        this.numResetBuffersCalls++;
     }
 }

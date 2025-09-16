@@ -1,5 +1,5 @@
 /*
-    Copyright 2018 Will Winder
+    Copyright 2018-2024 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -18,11 +18,12 @@
  */
 package com.willwinder.universalgcodesender;
 
+import com.willwinder.universalgcodesender.communicator.AbstractCommunicator;
 import com.willwinder.universalgcodesender.gcode.util.Code;
 import com.willwinder.universalgcodesender.listeners.ControllerListener;
 import com.willwinder.universalgcodesender.listeners.ControllerState;
+import com.willwinder.universalgcodesender.model.CommunicatorState;
 import com.willwinder.universalgcodesender.model.PartialPosition;
-import com.willwinder.universalgcodesender.model.UGSEvent;
 import com.willwinder.universalgcodesender.model.UnitUtils;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
 import org.junit.Before;
@@ -33,9 +34,16 @@ import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.spy;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Test TinyG controller implementation
@@ -57,33 +65,6 @@ public class TinyGControllerTest {
 
         queueCommandArgumentCaptor = ArgumentCaptor.forClass(GcodeCommand.class);
         doNothing().when(communicator).queueCommand(queueCommandArgumentCaptor.capture());
-    }
-
-    @Test
-    public void rawResponseWithReadyResponse() throws Exception {
-        // When
-        controller.rawResponseHandler("{\"r\":{\"msg\":\"SYSTEM READY\"}}");
-
-        // Then
-        verify(communicator).sendByteImmediately(TinyGUtils.COMMAND_ENQUIRE_STATUS);
-    }
-
-    @Test
-    public void rawResponseWithAckResponse() {
-        // When
-        controller.rawResponseHandler("{\"ack\":true}");
-
-        // Then
-        verify(communicator, times(10)).queueCommand(any(GcodeCommand.class));
-        verify(communicator).streamCommands();
-
-        assertEquals("{ej:1}", queueCommandArgumentCaptor.getAllValues().get(0).getCommandString());
-        assertEquals("{sr:{posx:t, posy:t, posz:t, mpox:t, mpoy:t, mpoz:t, plan:t, vel:t, unit:t, stat:t, dist:t, admo:t, frmo:t, coor:t}}", queueCommandArgumentCaptor.getAllValues().get(1).getCommandString());
-        assertEquals("{jv:4}", queueCommandArgumentCaptor.getAllValues().get(2).getCommandString());
-        assertEquals("{qv:0}", queueCommandArgumentCaptor.getAllValues().get(3).getCommandString());
-        assertEquals("{sv:1}", queueCommandArgumentCaptor.getAllValues().get(4).getCommandString());
-        assertEquals("$$", queueCommandArgumentCaptor.getAllValues().get(5).getCommandString());
-        assertEquals("{sr:n}", queueCommandArgumentCaptor.getAllValues().get(6).getCommandString());
     }
 
     @Test
@@ -132,63 +113,77 @@ public class TinyGControllerTest {
     }
 
     @Test
+    public void rawResponseWithResultAndStatusReportShouldCompleteCommand() throws Exception {
+        controller = spy(controller);
+        when(communicator.isConnected()).thenReturn(true);
+        controller.commandSent(new GcodeCommand("blah"));
+        assertTrue(controller.getActiveCommand().isPresent());
+
+        String response = "{\"r\": {\"sr\": {\"stat\": 1}}}";
+        controller.rawResponseHandler(response);
+
+        verify(controller, times(1)).commandComplete();
+        assertFalse(controller.getActiveCommand().isPresent());
+    }
+
+    @Test
     public void rawResponseWithStatusReportStateFromControllerShouldUpdateControllerState() {
-        assertEquals("The controller should begin in an unkown state", ControllerState.UNKNOWN, controller.getControllerStatus().getState());
+        assertEquals("The controller should begin in an disconnected state", ControllerState.DISCONNECTED, controller.getControllerStatus().getState());
 
         ControllerListener controllerListener = mock(ControllerListener.class);
         controller.addListener(controllerListener);
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 1}}");
         assertEquals(ControllerState.IDLE, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_IDLE, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_IDLE, controller.getCommunicatorState());
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 2}}");
         assertEquals(ControllerState.ALARM, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_IDLE, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_IDLE, controller.getCommunicatorState());
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 3}}");
         assertEquals(ControllerState.IDLE, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_IDLE, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_IDLE, controller.getCommunicatorState());
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 4}}");
         assertEquals(ControllerState.IDLE, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_IDLE, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_IDLE, controller.getCommunicatorState());
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 5}}");
         assertEquals(ControllerState.RUN, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_SENDING, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_SENDING, controller.getCommunicatorState());
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 6}}");
         assertEquals(ControllerState.HOLD, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_SENDING_PAUSED, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_SENDING_PAUSED, controller.getCommunicatorState());
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 7}}");
         assertEquals(ControllerState.UNKNOWN, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_IDLE, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_IDLE, controller.getCommunicatorState());
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 8}}");
         assertEquals(ControllerState.UNKNOWN, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_IDLE, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_IDLE, controller.getCommunicatorState());
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 9}}");
         assertEquals(ControllerState.HOME, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_IDLE, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_IDLE, controller.getCommunicatorState());
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 10}}");
         assertEquals(ControllerState.JOG, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_SENDING, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_SENDING, controller.getCommunicatorState());
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 11}}");
         assertEquals(ControllerState.UNKNOWN, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_IDLE, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_IDLE, controller.getCommunicatorState());
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 12}}");
         assertEquals(ControllerState.UNKNOWN, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_IDLE, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_IDLE, controller.getCommunicatorState());
 
         controller.rawResponseHandler("{\"sr\":{\"stat\": 13}}");
         assertEquals(ControllerState.ALARM, controller.getControllerStatus().getState());
-        assertEquals(UGSEvent.ControlState.COMM_IDLE, controller.getControlState());
+        assertEquals(CommunicatorState.COMM_IDLE, controller.getCommunicatorState());
     }
 
     @Test
@@ -202,13 +197,9 @@ public class TinyGControllerTest {
 
         // Then
         orderVerifier.verify(communicator).cancelSend();
-        orderVerifier.verify(communicator).sendByteImmediately(TinyGUtils.COMMAND_KILL_JOB);
+        orderVerifier.verify(communicator).sendByteImmediately(TinyGUtils.COMMAND_PAUSE);
+        orderVerifier.verify(communicator).sendByteImmediately(TinyGUtils.COMMAND_QUEUE_FLUSH);
         orderVerifier.verify(communicator).cancelSend(); // Work around for clearing buffers and counters in communicator
-        orderVerifier.verify(communicator).queueCommand(any(GcodeCommand.class));
-        orderVerifier.verify(communicator).streamCommands();
-
-        GcodeCommand command = queueCommandArgumentCaptor.getAllValues().get(0);
-        assertEquals(TinyGUtils.COMMAND_KILL_ALARM_LOCK, command.getCommandString());
     }
 
     @Test
@@ -221,7 +212,7 @@ public class TinyGControllerTest {
 
         // When
         InOrder orderVerifier = inOrder(communicator);
-        controller.jogMachine(1, 1, 1, 100, 1000, UnitUtils.Units.MM);
+        controller.jogMachine(new PartialPosition(100., 100., 100., UnitUtils.Units.MM), 1000);
 
         // Then
         orderVerifier.verify(communicator, times(1)).queueCommand(any(GcodeCommand.class));
@@ -243,7 +234,7 @@ public class TinyGControllerTest {
 
         // When
         InOrder orderVerifier = inOrder(communicator);
-        controller.jogMachine(1, 1, 1, 100, 1000, UnitUtils.Units.MM);
+        controller.jogMachine(new PartialPosition(100., 100., 100., UnitUtils.Units.MM), 1000);
 
         // Then
         orderVerifier.verify(communicator, times(1)).queueCommand(any(GcodeCommand.class));

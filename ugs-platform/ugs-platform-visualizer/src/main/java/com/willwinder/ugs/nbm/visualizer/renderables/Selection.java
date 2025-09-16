@@ -1,5 +1,5 @@
 /*
-    Copyright 2016-2017 Will Winder
+    Copyright 2016-2022 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -21,19 +21,20 @@ package com.willwinder.ugs.nbm.visualizer.renderables;
 import com.willwinder.ugs.nbm.visualizer.shared.Renderable;
 import com.jogamp.opengl.GL2;
 import com.jogamp.opengl.GLAutoDrawable;
-import com.willwinder.ugs.nbm.visualizer.options.VisualizerOptions;
-import javax.vecmath.Point3d;
+import com.willwinder.universalgcodesender.model.Position;
+
+import static com.willwinder.ugs.nbm.visualizer.options.VisualizerOptions.VISUALIZER_OPTION_SELECTION;
 
 /**
  *
  * @author wwinder
  */
 public class Selection extends Renderable {
-    private Point3d start = null;
-    private Point3d end = null;
+    private Position start = null;
+    private Position end = null;
 
     public Selection(String title) {
-        super(8, title);
+        super(8, title, VISUALIZER_OPTION_SELECTION);
     }
 
     public void clear() {
@@ -41,11 +42,11 @@ public class Selection extends Renderable {
         this.end = null;
     }
 
-    public void setStart(Point3d start) {
+    public void setStart(Position start) {
         this.start = start;
     }
 
-    public void setEnd(Point3d end) {
+    public void setEnd(Position end) {
         this.end = end;
     }
 
@@ -64,17 +65,12 @@ public class Selection extends Renderable {
     }
 
     @Override
-    public void reloadPreferences(VisualizerOptions vo) {
-    }
-
-    @Override
-    public void draw(GLAutoDrawable drawable, boolean idle, Point3d machineCoord, Point3d workCoord, Point3d objectMin, Point3d objectMax, double scaleFactor, Point3d mouseWorldCoordinates, Point3d rotation) {
+    public void draw(GLAutoDrawable drawable, boolean idle, Position machineCoord, Position workCoord, Position objectMin, Position objectMax, double scaleFactor, Position mouseWorldCoordinates, Position rotation) {
         if (start == null || end == null) return;
 
         GL2 gl = drawable.getGL().getGL2();
 
         gl.glColor4f(.3f,.3f,.3f, .09f);
-        //gl.glColor4fv(gridPlaneColor, 0);
 
         // floor - cover entire model and a little extra.
         gl.glBegin(GL2.GL_QUADS);
@@ -84,5 +80,4 @@ public class Selection extends Renderable {
             gl.glVertex3d(end.x  , start.y, 0);
         gl.glEnd();
     }
-    
 }
