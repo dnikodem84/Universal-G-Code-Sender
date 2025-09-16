@@ -273,11 +273,11 @@ public class GrblUtils {
             ret.addCapability(CapabilitiesConstants.OPEN_DOOR);
         }
 
-        if (options.isEnabled(GrblBuildOption.HOMING_FORCE_ORIGIN_ENABLED)) {
+        if (options != null && options.isEnabled(GrblBuildOption.HOMING_FORCE_ORIGIN_ENABLED)) {
             ret.addCapability(CapabilitiesConstants.HOMING_SETS_MACHINE_ZERO_POSITION);
         }
 
-        if (options.isEnabled(GrblBuildOption.VARIABLE_SPINDLE_ENABLED)) {
+        if (options != null && options.isEnabled(GrblBuildOption.VARIABLE_SPINDLE_ENABLED)) {
             ret.addCapability(CapabilitiesConstants.VARIABLE_SPINDLE);
         }
 

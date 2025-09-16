@@ -108,7 +108,7 @@ public class ControllerSettings {
             case SMOOTHIE:
                 return Optional.of(new SmoothieController());
             case TINYG:
-                return new TinyGController();
+                return Optional.of(new TinyGController());
             case MARLIN:
                 return Optional.of(new MarlinController());
             case G2CORE:

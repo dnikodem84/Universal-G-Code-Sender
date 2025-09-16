@@ -118,7 +118,7 @@ public class GcodeCommand {
      * @param commandNumber   the index of command, usually the line number in a file
      * @param isGenerated     if this is a generated command not a part of any program (ie. jog, action or settings commands).
      */
-    protected GcodeCommand(String command, String originalCommand, String comment, int commandNumber, boolean isGenerated) {
+    public GcodeCommand(String command, String originalCommand, String comment, int commandNumber, boolean isGenerated) {
         this.command = command.trim();
         this.originalCommand = originalCommand;
         this.comment = comment;

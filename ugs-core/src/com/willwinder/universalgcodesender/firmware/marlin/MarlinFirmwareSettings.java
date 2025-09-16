@@ -1,6 +1,7 @@
 package com.willwinder.universalgcodesender.firmware.marlin;
 
 import com.willwinder.universalgcodesender.firmware.FirmwareSetting;
+import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettings;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettingsListener;
 import com.willwinder.universalgcodesender.model.Axis;
@@ -81,12 +82,7 @@ public class MarlinFirmwareSettings implements IFirmwareSettings {
     }
 
     @Override
-    public void setStepsPerMillimeter(Axis axis, int stepsPerMillimeter) {
-
-    }
-
-    @Override
-    public int getStepsPerMillimeter(Axis axis) {
+    public double getStepsPerMillimeter(Axis axis) {
         return 0;
     }
 
@@ -127,6 +123,16 @@ public class MarlinFirmwareSettings implements IFirmwareSettings {
 
     @Override
     public double getMaximumRate(Axis axis) {
+        return 0;
+    }
+
+    @Override
+    public void setStepsPerMillimeter(Axis axis, double stepsPerMillimeter) throws FirmwareSettingsException {
+        
+    }
+
+    @Override
+    public int getMaxSpindleSpeed() throws FirmwareSettingsException {
         return 0;
     }
 }

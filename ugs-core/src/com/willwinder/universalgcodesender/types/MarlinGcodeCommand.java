@@ -26,7 +26,7 @@ public class MarlinGcodeCommand extends GcodeCommand {
     }
 
     @Override
-    public Boolean isDone() {
+    public boolean isDone() {
         return getResponse().endsWith("ok") || getResponse().startsWith("echo");
     }
 }
