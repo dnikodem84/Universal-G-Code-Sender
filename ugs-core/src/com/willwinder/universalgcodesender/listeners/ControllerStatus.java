@@ -67,6 +67,9 @@ public class ControllerStatus {
         this.feedSpeed = feedSpeed;
         this.feedSpeedUnits = feedSpeedUnits;
         this.spindleSpeed = spindleSpeed;
+        if (overrides == null) {
+            System.out.println("BoutTo Break");
+        }
         this.overrides = overrides;
         this.pins = pins;
         this.accessoryStates = states;

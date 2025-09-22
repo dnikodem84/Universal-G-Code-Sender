@@ -19,21 +19,30 @@
 package com.willwinder.universalgcodesender.firmware.marlin;
 
 import com.willwinder.universalgcodesender.firmware.grbl.*;
-import com.willwinder.universalgcodesender.firmware.grbl.commands.GrblCommand;
-import com.willwinder.universalgcodesender.gcode.ICommandCreator;
-import com.willwinder.universalgcodesender.types.GcodeCommand;
+import java.util.HashMap;
 
 /**
- * @author Joacim Breiler
+ * Parses options from the build info command (M503)
+ * <a href="https://github.com/gnea/grbl/wiki/Grbl-v1.1-Interface#feedback-messages">Documentation</a>
+ *
+ * @author Damian Nikodem
  */
-public class MarlinCommandCreator implements ICommandCreator {
-    @Override
-    public GcodeCommand createCommand(String command) {
-        return new MarlinCommand(command);
+public class MarlinBuildOptions {
+    private final HashMap<String,String> options;
+
+    public MarlinBuildOptions() {
+        this(new HashMap<>());
     }
 
-    @Override
-    public GcodeCommand createCommand(String command, String originalCommand, String comment, int lineNumber) {
-        return new MarlinCommand(command, originalCommand, comment, lineNumber);
+    public MarlinBuildOptions(HashMap<String,String> options) {
+        this.options = options;
+    }
+
+    public boolean isEnabled(String buildOption) {
+        if (!this.options.containsKey(buildOption)) {
+            return false;
+        } else {
+            return this.options.get(buildOption).equals("1");
+        }
     }
 }

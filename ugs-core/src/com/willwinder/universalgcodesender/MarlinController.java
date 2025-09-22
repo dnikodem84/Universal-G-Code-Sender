@@ -6,7 +6,9 @@ import com.willwinder.universalgcodesender.connection.ConnectionDriver;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettings;
 import com.willwinder.universalgcodesender.firmware.IOverrideManager;
 import com.willwinder.universalgcodesender.firmware.grbl.GrblCapabilitiesConstants;
+import com.willwinder.universalgcodesender.firmware.grbl.GrblCommandLogger;
 import com.willwinder.universalgcodesender.firmware.grbl.GrblOverrideManager;
+import com.willwinder.universalgcodesender.firmware.marlin.MarlinCommand;
 import com.willwinder.universalgcodesender.firmware.marlin.MarlinCommandCreator;
 import com.willwinder.universalgcodesender.firmware.marlin.MarlinFirmwareSettings;
 //import com.willwinder.universalgcodesender.gcode.GcodeCommandCreator;
@@ -18,6 +20,7 @@ import com.willwinder.universalgcodesender.listeners.ControllerState;
 import com.willwinder.universalgcodesender.listeners.ControllerStatus;
 import com.willwinder.universalgcodesender.listeners.ControllerStatusBuilder;
 import com.willwinder.universalgcodesender.listeners.MessageType;
+import com.willwinder.universalgcodesender.listeners.OverridePercents;
 import com.willwinder.universalgcodesender.model.Axis;
 import static com.willwinder.universalgcodesender.model.CommunicatorState.COMM_CHECK;
 import com.willwinder.universalgcodesender.model.Overrides;
@@ -41,35 +44,50 @@ import static com.willwinder.universalgcodesender.model.UnitUtils.Units.MM;
 import java.util.logging.Level;
 
 public class MarlinController extends AbstractController {
+
     private static final Logger logger = Logger.getLogger(MarlinController.class.getSimpleName());
     private final DecimalFormat decimalFormatter = new DecimalFormat("0.0000", Localization.dfs);
     private final MarlinFirmwareSettings firmwareSettings;
 //    private final Capabilities capabilities;
     private Capabilities capabilities = new Capabilities();
     private final String firmwareVersion;
-    private ControllerStatus controllerStatus;
+    private ControllerStatus controllerStatus
+            //            = ControllerStatusBuilder.newInstance()
+            //            .setState(ControllerState.DISCONNECTED)
+            //            .setWorkCoord(Position.ZERO)
+            //            .setMachineCoord(Position.ZERO)
+            //            .setOverrides(OverridePercents.EMTPY_OVERRIDE_PERCENTS)
+            //            .build();
+            = ControllerStatusBuilder.newInstance()
+                    .setState(ControllerState.DISCONNECTED)
+                    .setWorkCoord(Position.ZERO)
+                    .setMachineCoord(Position.ZERO)
+                    .build();
     private ControllerState controllerState;
     private StatusPollTimer positionPollTimer;
     private int outstandingPolls;
     private IControllerInitializer initializer;
     private IOverrideManager overrideManager;
+    private GrblCommandLogger commandLogger;
     public MarlinController() {
         this(new MarlinCommunicator(), new MarlinCommandCreator());
     }
 
     public MarlinController(ICommunicator comm, ICommandCreator commandCreator) { //MarlinCommunicator marlinCommunicator) {
-        super(comm,commandCreator);
-        
+        super(comm, commandCreator);
+        this.initializer = new MarlinControllerInitializer(this);
+
         firmwareSettings = new MarlinFirmwareSettings();
         controllerState = ControllerState.UNKNOWN;
-        controllerStatus = new ControllerStatus(controllerState, new Position(0, 0, 0, UnitUtils.Units.MM), new Position(0, 0, 0, UnitUtils.Units.MM));
+
         firmwareVersion = "Marlin unknown version";
         positionPollTimer = new StatusPollTimer(this);
         this.overrideManager = new GrblOverrideManager(this, comm, messageService);
-        
+        this.commandLogger = new GrblCommandLogger(messageService);
+        addListener(commandLogger);
+
     }
 
-    
     @Override
     protected Boolean isIdleEvent() {
         if (this.capabilities.hasCapability(GrblCapabilitiesConstants.REAL_TIME)) {
@@ -79,46 +97,91 @@ public class MarlinController extends AbstractController {
         return true;
     }
 
-
     @Override
     protected void closeCommBeforeEvent() {
-
+        positionPollTimer.stop();
     }
 
     @Override
     protected void closeCommAfterEvent() {
-
+        initializer.reset();
     }
 
     @Override
-    protected void cancelSendBeforeEvent()  {
+    protected void cancelSendBeforeEvent() throws Exception {
+        boolean paused = isPaused();
+        // The cancel button is left enabled at all times now, but can only be
+        // used for some versions of GRBL.
+        if (paused && !this.capabilities.hasCapability(GrblCapabilitiesConstants.REAL_TIME)) {
+            throw new Exception("Cannot cancel while paused with this version of Marlin. Reconnect to reset Marlin.");
+        }
 
+        // If we're canceling a "jog" state
+        if (capabilities.hasJogging() && controllerStatus != null &&
+                controllerStatus.getState() == ControllerState.JOG) {
+            dispatchConsoleMessage(MessageType.VERBOSE, String.format(">>> %s\n", MarlinUtils.MARLIN_JOG_CANCEL_COMMAND));
+            sendCommandImmediately(new MarlinCommand(MarlinUtils.MARLIN_JOG_CANCEL_COMMAND));     
+        }
+        // Otherwise, check if we can get fancy with a soft reset.
+        else if (!paused && this.capabilities.hasCapability(GrblCapabilitiesConstants.REAL_TIME)) {
+            try {
+                this.pauseStreaming();
+            } catch (Exception e) {
+                // Oh well, was worth a shot.
+                System.out.println("Exception while trying to issue a soft reset: " + e.getMessage());
+            }
+        }
     }
 
     @Override
     protected void cancelSendAfterEvent() {
-
+        if (this.capabilities.hasCapability(GrblCapabilitiesConstants.REAL_TIME) && this.getStatusUpdatesEnabled()) {
+            // Trigger the position listener to watch for the machine to stop.
+//            this.attemptsRemaining = 50;
+//            this.isCanceling = true;
+//            this.lastLocation = null;
+        }
     }
 
     @Override
-    protected void pauseStreamingEvent()  {
-
+    public void cancelJog() throws Exception {
+        if (capabilities.hasCapability(GrblCapabilitiesConstants.HARDWARE_JOGGING)) {
+            dispatchConsoleMessage(MessageType.VERBOSE, String.format(">>> %s\n", MarlinUtils.MARLIN_JOG_CANCEL_COMMAND));
+            sendCommandImmediately(new MarlinCommand(MarlinUtils.MARLIN_JOG_CANCEL_COMMAND));     
+        } else {
+            cancelSend();
+        }
     }
 
     @Override
-    protected void resumeStreamingEvent()  {
-
+    protected void pauseStreamingEvent() throws Exception {
+        if (this.capabilities.hasCapability(GrblCapabilitiesConstants.REAL_TIME)) {
+            sendCommandImmediately(new MarlinCommand(MarlinUtils.MARLIN_PAUSE_COMMAND));            
+        }
     }
 
     @Override
-    protected void isReadyToSendCommandsEvent()  {
-
+    protected void resumeStreamingEvent() throws Exception {
+        if (this.capabilities.hasCapability(GrblCapabilitiesConstants.REAL_TIME)) {
+            sendCommandImmediately(new MarlinCommand(MarlinUtils.MARLIN_RESUME_COMMAND));
+        }
     }
 
     @Override
-    protected void isReadyToStreamCommandsEvent() {
-
+    protected void isReadyToSendCommandsEvent() throws ControllerException {
+        if (!isCommOpen()) {
+            throw new ControllerException(Localization.getString("controller.exception.booting"));
+        }
     }
+
+    @Override
+    protected void isReadyToStreamCommandsEvent() throws Exception {
+        isReadyToSendCommandsEvent();
+        if (this.controllerStatus != null && this.controllerStatus.getState() == ControllerState.ALARM) {
+            throw new Exception(Localization.getString("grbl.exception.Alarm"));
+        }
+    }
+
     @Override
     public Boolean openCommPort(ConnectionDriver connectionDriver, String port, int portRate) throws Exception {
         if (isCommOpen()) {
@@ -134,7 +197,8 @@ public class MarlinController extends AbstractController {
         initialize();
         return isCommOpen();
     }
-     private void initialize() {
+
+    private void initialize() {
 
         if (comm.areActiveCommands()) {
             messageService.dispatchMessage(MessageType.INFO, "*** Canceling current stream\n");
@@ -148,21 +212,20 @@ public class MarlinController extends AbstractController {
         }
 
         ThreadHelper.invokeLater(() -> {
-//            positionPollTimer.stop();
+            positionPollTimer.stop();
             if (!initializer.initialize()) {
                 return;
             }
 
-            capabilities = GrblUtils.getGrblStatusCapabilities(2,'d',null);
+            capabilities = MarlinUtils.getMarlinStatusCapabilities(2, 'd', null);
             logger.info("Identified controller capabilities: " + capabilities);
 
             // Toggle the state to force UI update
             setControllerState(ControllerState.CONNECTING);
-//            positionPollTimer.start();
+            positionPollTimer.start();
         });
     }
 
-     
     @Override
     protected void rawResponseHandler(String response) {
         if (response.endsWith("start")) {
@@ -171,7 +234,7 @@ public class MarlinController extends AbstractController {
             String commandString = getActiveCommand().get().getCommandString();
             if (commandString.startsWith("M114")) {
                 handleStatusMessage(response);
-                if(getActiveCommand().get().getCommandNumber() >= 0 && !getActiveCommand().get().isGenerated()) {
+                if (getActiveCommand().get().getCommandNumber() >= 0 && !getActiveCommand().get().isGenerated()) {
                     dispatchConsoleMessage(MessageType.INFO, commandString + ": " + response + "\n");
                 }
             } else {
@@ -189,7 +252,7 @@ public class MarlinController extends AbstractController {
         } else if (MarlinGcodeCommand.isEchoResponse(response)) {
             dispatchConsoleMessage(MessageType.INFO, "< " + response + "\n");
         } else if (response.startsWith("FIRMWARE_NAME:")) {
-
+            logger.info("READY: " + response);
         } else if (MarlinGcodeCommand.isOkErrorResponse(response)) {
             logger.info(response + getActiveCommand().orElse(null));
         } else if (StringUtils.isNotEmpty(response)) {
@@ -202,7 +265,7 @@ public class MarlinController extends AbstractController {
 
     private void handleStatusMessage(String response) {
         outstandingPolls = 0;
-        if(response.contains("X:") && response.contains("Y:") && response.contains("Z:")) {
+        if (response.contains("X:") && response.contains("Y:") && response.contains("Z:")) {
             try {
                 double x = decimalFormatter.parse(StringUtils.substringBetween(response, "X:", " ")).doubleValue();
                 double y = decimalFormatter.parse(StringUtils.substringBetween(response, "Y:", " ")).doubleValue();
@@ -225,20 +288,20 @@ public class MarlinController extends AbstractController {
         setCurrentState(COMM_IDLE);
         controllerState = ControllerState.IDLE;
         ThreadHelper.invokeLater(() -> {
-            try {
-                comm.queueCommand(new GcodeCommand("M211"));
-                comm.queueCommand(new GcodeCommand("M503"));
-                comm.queueCommand(new GcodeCommand("M121"));
-                comm.queueCommand(new GcodeCommand("M302 S1"));
-                comm.streamCommands();
-            } catch (Exception e) {
-                e.printStackTrace();
-            }
+//            try {
+//                comm.queueCommand(new GcodeCommand("M211"));
+//                comm.queueCommand(new GcodeCommand("M503"));
+//                comm.queueCommand(new GcodeCommand("M121"));
+//                comm.queueCommand(new GcodeCommand("M302 S1"));
+//                comm.streamCommands();
+//            } catch (Exception e) {
+//                e.printStackTrace();
+//            }
 
             positionPollTimer.stop();//stopPollingPosition();
             positionPollTimer.start();// = createPositionPollTimer();
 //            beginPollingPosition();
-        }, 2000);
+        }, 5000);
     }
 //
 //    @Override
@@ -309,7 +372,6 @@ public class MarlinController extends AbstractController {
 //
 //        return new Timer(2000, actionListener);
 //    }
-
 //    /**
 //     * Begin issuing GRBL status request commands.
 //     */
@@ -322,7 +384,6 @@ public class MarlinController extends AbstractController {
 //            }
 //        }
 //    }
-
     @Override
     public void requestStatusReport() throws Exception {
         if (!this.isCommOpen()) {
@@ -330,7 +391,7 @@ public class MarlinController extends AbstractController {
         }
         comm.queueCommand(new GcodeCommand("M114", "M114", "", 0, true));
         comm.streamCommands();
-        comm.sendByteImmediately(GrblUtils.GRBL_STATUS_COMMAND);
+//        comm.sendByteImmediately(GrblUtils.GRBL_STATUS_COMMAND);
     }
 //    /**
 //     * Stop issuing GRBL status request commands.
@@ -342,7 +403,7 @@ public class MarlinController extends AbstractController {
 //    }
 
     @Override
-    public void jogMachine(PartialPosition distance, double feedRate) throws Exception {        
+    public void jogMachine(PartialPosition distance, double feedRate) throws Exception {
 
         String commandString = GcodeUtils.generateMoveCommand("G91G1", feedRate, distance);
 
@@ -351,7 +412,7 @@ public class MarlinController extends AbstractController {
         sendCommandImmediately(command);
         restoreParserModalState();
     }
-    
+
     @Override
     public void performHomingCycle() throws Exception {
         sendCommandImmediately(new GcodeCommand("G28"));
@@ -377,6 +438,7 @@ public class MarlinController extends AbstractController {
             sendCommandImmediately(createCommand(GcodeUtils.GCODE_RETURN_TO_Z_ZERO_LOCATION));
         }
     }
+
     @Override
     public void pauseStreaming() throws Exception {
         super.pauseStreaming();

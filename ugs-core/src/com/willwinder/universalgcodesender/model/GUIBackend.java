@@ -761,6 +761,7 @@ public class GUIBackend implements BackendAPI {
             this.initializeProcessedLines(false, this.gcodeFile, this.gcp);
         } catch (Exception e) {
             disconnect();
+            e.printStackTrace();
             logger.log(Level.INFO, "Exception in openCommConnection.", e);
             throw new Exception(Localization.getString("mainWindow.error.connection")
                     + ": " + e.getMessage(), e);
