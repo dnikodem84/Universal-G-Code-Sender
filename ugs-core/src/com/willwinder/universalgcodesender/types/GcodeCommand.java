@@ -60,7 +60,7 @@ public class GcodeCommand {
     private final boolean isGenerated;
 
     private Set<CommandListener> listeners;
-    private String response;
+    protected String response;
 
     /**
      * If the command has been sent to the controller

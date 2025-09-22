@@ -19,29 +19,33 @@
 package com.willwinder.universalgcodesender.firmware.marlin;
 
 //import com.willwinder.universalgcodesender.firmware.grbl.commands.*;
-import com.willwinder.universalgcodesender.types.GcodeCommand;
-import org.apache.commons.lang3.StringUtils;
 
 //import static com.willwinder.universalgcodesender.GrblUtils.isGrblStatusString;
-import static com.willwinder.universalgcodesender.MarlinUtils.isMarlinStatusString;
 
-public class MarlinCommand extends GcodeCommand {
-    public MarlinCommand(String command) {
+public class MarlinCheckCommand extends MarlinCommand {
+    private boolean commandSupported = false;
+    
+    public MarlinCheckCommand(String command) {
         super(command);
     }
 
-    public MarlinCommand(String command, String originalCommand, String comment, int commandNumber) {
+    public MarlinCheckCommand(String command, String originalCommand, String comment, int commandNumber) {
         super(command, originalCommand, comment, commandNumber);
     }
 
     @Override
     public void appendResponse(String response) {
-        // Do not append status strings to non status commands
-        if (!StringUtils.equals(getCommandString(), "M114") && isMarlinStatusString(response)) {
-            return;
-        }
 
         super.appendResponse(response);
+        if (this.response.contains("echo:Unknown command")) {
+            commandSupported = false;
+            setDone(true);
+            setOk(true);
+        } else {
+            commandSupported = true;
+        }
     }
-    
+    public boolean isCommandSupported() {
+        return this.commandSupported;
+    }
 }

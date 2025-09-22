@@ -235,7 +235,7 @@ public class MarlinController extends AbstractController {
             if (commandString.startsWith("M114")) {
                 handleStatusMessage(response);
                 if (getActiveCommand().get().getCommandNumber() >= 0 && !getActiveCommand().get().isGenerated()) {
-                    dispatchConsoleMessage(MessageType.INFO, commandString + ": " + response + "\n");
+                    dispatchConsoleMessage(MessageType.INFO, "SPECIAL STATUS HANDLER"+commandString + ": " + response + "\n");
                 }
             } else {
                 dispatchConsoleMessage(MessageType.INFO, commandString + ": " + response + "\n");
@@ -390,6 +390,7 @@ public class MarlinController extends AbstractController {
             throw new RuntimeException("Not connected to the controller");
         }
         comm.queueCommand(new GcodeCommand("M114", "M114", "", 0, true));
+//        new MarlinS
         comm.streamCommands();
 //        comm.sendByteImmediately(GrblUtils.GRBL_STATUS_COMMAND);
     }
@@ -404,15 +405,30 @@ public class MarlinController extends AbstractController {
 
     @Override
     public void jogMachine(PartialPosition distance, double feedRate) throws Exception {
-
-        String commandString = GcodeUtils.generateMoveCommand("G91G1", feedRate, distance);
-
-        GcodeCommand command = createCommand(commandString);
+        GcodeCommand unitCmd = createCommand(GcodeUtils.unitCommand(distance.getUnits()));      
+        GcodeCommand moveStyleCommand = createCommand("G91");      
+        
+        GcodeCommand command = createCommand(GcodeUtils.generatePlainMoveCommand("G0", feedRate, distance));
         command.setTemporaryParserModalChange(true);
+        sendCommandImmediately(unitCmd);
+        sendCommandImmediately(moveStyleCommand);
         sendCommandImmediately(command);
+        
         restoreParserModalState();
     }
-
+    @Override
+    public void jogMachineTo(PartialPosition position, double feedRate) throws Exception {
+        GcodeCommand unitCmd = createCommand(GcodeUtils.unitCommand(position.getUnits()));      
+        GcodeCommand moveStyleCommand = createCommand("G90");      
+        
+        GcodeCommand command = createCommand(GcodeUtils.generatePlainMoveCommand("G0", feedRate, position));
+        command.setTemporaryParserModalChange(true);
+        sendCommandImmediately(unitCmd);
+        sendCommandImmediately(moveStyleCommand);
+        sendCommandImmediately(command);
+        
+        restoreParserModalState();
+    }
     @Override
     public void performHomingCycle() throws Exception {
         sendCommandImmediately(new GcodeCommand("G28"));
@@ -421,6 +437,9 @@ public class MarlinController extends AbstractController {
     @Override
     public void returnToHome(double safetyHeightInMm) throws Exception {
         if (isIdle()) {
+            if (true) {
+                throw new RuntimeException("Currently Unsupported");
+            }
             // Convert the safety height to the same units as the current gcode state
             UnitUtils.Units currentUnit = getCurrentGcodeState().getUnits();
             double safetyHeight = safetyHeightInMm * UnitUtils.scaleUnits(MM, currentUnit);

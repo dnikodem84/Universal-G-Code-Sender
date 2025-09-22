@@ -59,6 +59,14 @@ public class GcodeUtils {
         StringBuilder sb = new StringBuilder();
 
         sb.append(GcodeUtils.unitCommand(p.getUnits()));
+        sb.append(generatePlainMoveCommand(command,feedRate,p));
+   
+
+        return sb.toString();
+    }
+    public static String generatePlainMoveCommand(String command, double feedRate, PartialPosition p) {
+        StringBuilder sb = new StringBuilder();
+        
         sb.append(command);
         sb.append(p.getFormattedGCode(Utils.formatter));
 
@@ -71,7 +79,6 @@ public class GcodeUtils {
 
         return sb.toString();
     }
-
     /**
      * Generate a command to move to a specific coordinate
      *
@@ -84,6 +91,13 @@ public class GcodeUtils {
         StringBuilder sb = new StringBuilder();
 
         sb.append(unitCommand(position.getUnits()));
+        sb.append(generatePlainMoveToCommand(command,position,feedRate));
+
+        return sb.toString();
+    }
+    public static String generatePlainMoveToCommand(String command, PartialPosition position, double feedRate) {
+        StringBuilder sb = new StringBuilder();
+
         sb.append(command);
 
         // Add all axises
@@ -96,5 +110,4 @@ public class GcodeUtils {
 
         return sb.toString();
     }
-
 }

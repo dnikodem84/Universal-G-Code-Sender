@@ -6,6 +6,7 @@ import com.willwinder.universalgcodesender.firmware.marlin.GetMarlinBuildInfoCom
 import com.willwinder.universalgcodesender.firmware.marlin.GetMarlinSettingsCommand;
 import com.willwinder.universalgcodesender.firmware.marlin.GetMarlinStatusCommand;
 import com.willwinder.universalgcodesender.firmware.marlin.MarlinBuildOptions;
+import com.willwinder.universalgcodesender.firmware.marlin.MarlinCheckCommand;
 import com.willwinder.universalgcodesender.firmware.marlin.MarlinCommand;
 import com.willwinder.universalgcodesender.firmware.marlin.MarlinVersion;
 import com.willwinder.universalgcodesender.listeners.ControllerState;
@@ -67,9 +68,9 @@ public class MarlinControllerInitializer implements IControllerInitializer {
             Thread.sleep(2000);
             fetchControllerVersion();
             fetchControllerState();
-            sendAndWaitForCompletion(controller, new MarlinCommand("M211"),2000);
-            sendAndWaitForCompletion(controller, new MarlinCommand("M121"),2000);
-            sendAndWaitForCompletion(controller, new MarlinCommand("M302 S1"),2000);
+            sendAndWaitForCompletion(controller, new MarlinCheckCommand("M211"),2000);
+            sendAndWaitForCompletion(controller, new MarlinCheckCommand("M121"),2000);
+            sendAndWaitForCompletion(controller, new MarlinCheckCommand("M302 S1"),2000);
             controller.getMessageService().dispatchMessage(MessageType.INFO, String.format("*** Connected to: %s\n", version.toString()));
             isInitialized.set(true);
             isInitializing.set(false);

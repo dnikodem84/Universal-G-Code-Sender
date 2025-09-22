@@ -61,10 +61,12 @@ import java.util.stream.Collectors;
  * @author wwinder
  */
 public class GcodeParserUtils {
+
     private static final Logger LOGGER = Logger.getLogger(GcodeParserUtils.class.getName());
 
     /**
-     * For backwards compatibility this method calls processCommand with includeNonMotionStates = false.
+     * For backwards compatibility this method calls processCommand with
+     * includeNonMotionStates = false.
      */
     public static List<GcodeParser.GcodeMeta> processCommand(String command, int line, final GcodeState inputState)
             throws GcodeParserException {
@@ -75,14 +77,17 @@ public class GcodeParserUtils {
      * Process command given an initial state. This method will not modify its
      * input parameters.
      *
-     * @param includeNonMotionStates Create gcode meta responses even if there is no motion, for example "F100" will not
-     *                               return a GcodeMeta entry unless this flag is set to true.
+     * @param includeNonMotionStates Create gcode meta responses even if there
+     * is no motion, for example "F100" will not return a GcodeMeta entry unless
+     * this flag is set to true.
      */
     public static List<GcodeParser.GcodeMeta> processCommand(String command, int line, final GcodeState inputState,
-                                                             boolean includeNonMotionStates)
+            boolean includeNonMotionStates)
             throws GcodeParserException {
         List<String> args = GcodePreprocessorUtils.splitCommand(command);
-        if (args.isEmpty()) return null;
+        if (args.isEmpty()) {
+            return null;
+        }
 
         // Initialize with original state
         GcodeState state = inputState.copy();
@@ -215,8 +220,8 @@ public class GcodeParserUtils {
         PointSegment ps = new PointSegment(nextPoint, line);
 
         PlaneFormatter plane = new PlaneFormatter(state.plane);
-        Position center =
-                GcodePreprocessorUtils.updateCenterWithCommand(
+        Position center
+                = GcodePreprocessorUtils.updateCenterWithCommand(
                         args, state.currentPoint, nextPoint, state.inAbsoluteIJKMode, clockwise, plane);
 
         double radius = GcodePreprocessorUtils.parseCoord(args, 'R');
@@ -226,7 +231,7 @@ public class GcodeParserUtils {
 
             radius = Math.sqrt(
                     Math.pow(plane.axis0(state.currentPoint) - plane.axis0(center), 2.0)
-                            + Math.pow(plane.axis1(state.currentPoint) - plane.axis1(center), 2.0));
+                    + Math.pow(plane.axis1(state.currentPoint) - plane.axis1(center), 2.0));
         }
 
         ps.setIsMetric(state.isMetric);
@@ -238,7 +243,6 @@ public class GcodeParserUtils {
 
         boolean isRotation = state.currentPoint.hasRotationTo(nextPoint);
         ps.setIsRotation(isRotation);
-
 
         // Save off the endpoint.
         state.currentPoint = nextPoint;
@@ -435,7 +439,7 @@ public class GcodeParserUtils {
         // Preprocess a regular gcode file.
         try (BufferedReader br = input) {
             int i = 0;
-            for (String line; (line = br.readLine()) != null; ) {
+            for (String line; (line = br.readLine()) != null;) {
                 i++;
 
                 String comment = GcodePreprocessorUtils.parseComment(line);

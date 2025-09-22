@@ -25,6 +25,10 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.awt.event.WindowListener;
 import java.io.PrintStream;
+import java.nio.ByteBuffer;
+import java.text.DecimalFormat;
+import java.util.HashMap;
+import javax.swing.AbstractListModel;
 import javax.swing.Action;
 import javax.swing.DefaultListModel;
 import javax.swing.JButton;
@@ -58,7 +62,7 @@ public class SerialTester {
 
 class EditFrame extends JFrame {
 
-    DefaultListModel<String> dlm = new DefaultListModel<>();
+    SerialDataListModel dlm = new SerialDataListModel();
     JList jlb = new JList(dlm);
     JPanel pnlEdit = new JPanel();
     JTextField line = new JTextField();
@@ -110,6 +114,7 @@ class EditFrame extends JFrame {
         comPort = SerialPort.getCommPorts()[this.jcbPorts.getSelectedIndex()];
         comPort.setBaudRate(Integer.parseInt((String)this.baudRates.getSelectedItem()));
         comPort.openPort();
+        dlm.clear();
         printStream = new PrintStream(comPort.getOutputStream());
         runThread = new Thread(new Runnable() {
             @Override
@@ -175,7 +180,6 @@ class EditFrame extends JFrame {
         add(pnlEdit, BorderLayout.SOUTH);
 
 
-//        printStream = new PrintStream(comPort.getOutputStream());
         btn.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -214,13 +218,89 @@ class EditFrame extends JFrame {
         SwingUtilities.invokeLater(new Runnable() {
             @Override
             public void run() {
-                String tmpStr[] = new String(readBuffer).split("\n");
-                for (String part : tmpStr) {
-                    dlm.addElement(part);
-                }
+                dlm.appendBytes(readBuffer);
+//                String tmpStr[] = new String(readBuffer).split("\n");
+//                for (String part : tmpStr) {
+//                    dlm.addElement(part);
+//                }
             }
         });
         JScrollBar vertical = jsp.getVerticalScrollBar();
         vertical.setValue(vertical.getMaximum());
     }
+}
+
+class SerialDataListModel extends AbstractListModel<String> {
+    private long startTime;
+    private byte[] serialData = {};
+    private String delimiter = "\n";
+    private String[] splitData = null;
+    private HashMap<Integer,Long> timeMap = new HashMap<>();
+    
+    private DecimalFormat dfTwo = new DecimalFormat("00");
+    private DecimalFormat dfThree = new DecimalFormat("000");
+    private DecimalFormat dfMore = new DecimalFormat("#############00");
+    
+    public SerialDataListModel() {
+        startTime = System.currentTimeMillis();
+    }
+    
+    public String[] getSplitData() {
+        if (splitData == null) {
+            splitData = new String(serialData).split(this.delimiter);
+        }
+        return splitData;
+    }
+    
+    @Override
+    public int getSize() {        
+        int res = getSplitData().length;
+        if ((res == 1) && (getSplitData()[0].isEmpty())) {
+            res --; 
+        }
+        return res;
+    }
+    
+    private long getTimestamp(int index) {
+        if (!timeMap.containsKey(index)) {
+            timeMap.put(index, System.currentTimeMillis());
+        }
+        return timeMap.get(index);
+    }
+    public void appendBytes(byte[] newData) {
+        ByteBuffer bb = ByteBuffer.allocate(this.serialData.length + newData.length);
+        bb.put(this.serialData);
+        bb.put(newData);
+        this.serialData = bb.array();
+        this.splitData = null;
+        int index = getSize();
+        fireIntervalAdded(this, index, index);
+    }
+    public void clear() {
+        int index1 = getSize()-1;
+        if (index1<0) {
+            index1=0;
+        }
+        this.splitData=null;
+        this.serialData = new byte[0];
+        this.timeMap.clear();
+        this.startTime = System.currentTimeMillis();    
+        fireIntervalRemoved(this, 0, index1);
+    }
+    @Override
+    public String getElementAt(int index) {
+        long tsTime = this.startTime-getTimestamp(index);
+        long totSeconds = (tsTime / 1000);
+        long totMinutes = (totSeconds / 60);
+        long totHours = (totMinutes / 60);
+        
+        long realMinutes =  (totHours * 60)-totMinutes;
+        long realSeconds =  (totMinutes *60)-totSeconds;
+        long realMs =  (totSeconds  * 1000)-tsTime;
+        
+        String timeStamp = dfMore.format(totHours)+ ":" + dfTwo.format(realMinutes)+
+                ":" + dfTwo.format(realSeconds)+ "." + dfThree.format(realMs);
+        return timeStamp + " : " + getSplitData()[index];
+    }
+    
 }
