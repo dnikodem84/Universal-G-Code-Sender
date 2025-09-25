@@ -66,7 +66,7 @@ public class MarlinUtils {
      * Grbl commands
      */
     // Real time
-    public static final String MARLIN_PAUSE_COMMAND = "M112"; // Full Shutdown
+    public static final String MARLIN_PAUSE_COMMAND =  "M410";// do not use "M112" / Full Shutdown board cannot Recover ? 
     public static final String MARLIN_RESUME_COMMAND = "M108";
     public static final String MARLIN_STATUS_COMMAND = "M114";
     public static final String MARLIN_DOOR_COMMAND = "M410";//Quickstop;
