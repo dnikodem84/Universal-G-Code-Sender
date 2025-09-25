@@ -66,16 +66,16 @@ public class MarlinUtils {
      * Grbl commands
      */
     // Real time
-    public static final String MARLIN_PAUSE_COMMAND = "M0";
+    public static final String MARLIN_PAUSE_COMMAND = "M112"; // Full Shutdown
     public static final String MARLIN_RESUME_COMMAND = "M108";
     public static final String MARLIN_STATUS_COMMAND = "M114";
-    public static final String MARLIN_DOOR_COMMAND = MARLIN_PAUSE_COMMAND;
-    public static final String MARLIN_JOG_CANCEL_COMMAND = "M0";
+    public static final String MARLIN_DOOR_COMMAND = "M410";//Quickstop;
+    public static final String MARLIN_JOG_CANCEL_COMMAND = "M410";//"M0";
     public static final byte MARLIN_RESET_COMMAND = 0x18;
     // Non real time
-    public static final String MARLIN_KILL_ALARM_LOCK_COMMAND = "$X";
-    public static final String MARLIN_TOGGLE_CHECK_MODE_COMMAND = "$C";
-    public static final String MARLIN_VIEW_PARSER_STATE_COMMAND = "$G";
+    public static final String MARLIN_KILL_ALARM_LOCK_COMMAND = "M999";//$X";
+    public static final String MARLIN_TOGGLE_CHECK_MODE_COMMAND = "$C"; // unsupported
+    public static final String MARLIN_VIEW_PARSER_STATE_COMMAND = "$G"; // Unsupported
     public static final String MARLIN_VIEW_SETTINGS_COMMAND = "M503";
     public static final String MARLIN_BUILD_INFO_COMMAND = "M115";
 

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 fliptech
+ * Copyright (C) 2025 Damian Nikodem
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -44,7 +44,7 @@ import javax.swing.SwingUtilities;
 
 /**
  *
- * @author fliptech
+ * @author dnikodem
  */
 public class SerialTester {
 
