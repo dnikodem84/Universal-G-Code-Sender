@@ -98,8 +98,7 @@ public class FluidNCSettings implements IFirmwareSettings {
             ControllerUtils.sendAndWaitForCompletion(controller, cmdPersist);  
         } catch (Exception e) {
             throw new FirmwareSettingsException("Couldn't save settings to the controller", e);
-        }
-                
+        }                
     }
     
     @Override
@@ -110,6 +109,10 @@ public class FluidNCSettings implements IFirmwareSettings {
                 FluidNCCommand systemCommand = new FluidNCCommand("$/" + key + "=" + value);
                 ControllerUtils.sendAndWaitForCompletion(controller, systemCommand);
                 if (systemCommand.isOk()) {
+                    FluidNCCommand checkCommand = new FluidNCCommand("$/" + key);
+                    ControllerUtils.sendAndWaitForCompletion(controller, systemCommand);
+                    String test = checkCommand.getResponse();
+                    System.out.println(test);
                     FirmwareSetting firmwareSetting = new FirmwareSetting(key, value, "", "", "");
                     settings.put(key, firmwareSetting);
                     listeners.forEach(l -> l.onUpdatedFirmwareSetting(firmwareSetting));
