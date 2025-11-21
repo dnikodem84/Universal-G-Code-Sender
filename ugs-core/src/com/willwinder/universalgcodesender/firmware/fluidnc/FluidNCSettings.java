@@ -243,7 +243,18 @@ public class FluidNCSettings implements IFirmwareSettings {
         }
         return result;
     }
-        
+   public String findSettingForGPIO(String gpio) {
+        // Syntax: gpio.14:high:pd or gpio.14:low:pu.
+        String result = "";
+        if (!gpio.equalsIgnoreCase("NO_PIN")) {
+            for (FirmwareSetting s: getAllSettings()) {            
+                if (s.getValue().toLowerCase().contains(gpio.toLowerCase())) {
+                    return s.getKey();
+                }
+            }
+        }
+        return result;
+    }    
     @Override
     public void setHardLimitsEnabled(boolean enabled) {
         // Only set Hard limits on 

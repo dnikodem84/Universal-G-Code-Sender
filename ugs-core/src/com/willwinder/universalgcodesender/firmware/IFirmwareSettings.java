@@ -25,6 +25,7 @@ import com.willwinder.universalgcodesender.types.CommandException;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * An interface for fetching and setting the controller firmware settings.
@@ -281,6 +282,12 @@ public interface IFirmwareSettings {
     }
     default void refresh() throws FirmwareSettingsException, CommandException {
 
+    }
+    default Set<String> getUsedGpio() {
+        return null;
+    }
+    default String findSettingForGPIO(String gpio) {
+        return "";
     }
 }
 

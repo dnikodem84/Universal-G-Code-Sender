@@ -24,6 +24,7 @@ import com.willwinder.ugs.nbp.setupwizard.panels.WizardPanelHardLimits;
 import com.willwinder.ugs.nbp.setupwizard.panels.WizardPanelHoming;
 import com.willwinder.ugs.nbp.setupwizard.panels.WizardPanelImportConfigYaml;
 import com.willwinder.ugs.nbp.setupwizard.panels.WizardPanelMotorWiring;
+import com.willwinder.ugs.nbp.setupwizard.panels.WizardPanelProbeSetup;
 import com.willwinder.ugs.nbp.setupwizard.panels.WizardPanelSoftLimits;
 import com.willwinder.ugs.nbp.setupwizard.panels.WizardPanelStepCalibration;
 import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
@@ -112,6 +113,8 @@ public class WizardStarter {
         panels.add(new WizardPanelHardLimits(backend));
         panels.add(new WizardPanelHoming(backend));
         panels.add(new WizardPanelSoftLimits(backend));
+        panels.add(new WizardPanelProbeSetup(backend));
+        
         return panels;
     }
 }
