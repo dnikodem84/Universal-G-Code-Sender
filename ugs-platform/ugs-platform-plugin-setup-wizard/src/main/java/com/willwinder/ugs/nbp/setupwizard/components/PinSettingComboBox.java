@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2025 fliptech
+ * Copyright (C) 2025 Damian Nikodem
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -35,7 +35,7 @@ import javax.swing.plaf.basic.BasicComboBoxRenderer;
 
 /**
  *
- * @author fliptech
+ * @author Damian Nikodem
  */
 public class PinSettingComboBox extends JComboBox {
 
@@ -113,11 +113,11 @@ class PinSettingComboModel implements ComboBoxModel<String> {
             String currentPinUser = getSettings().findSettingForGPIO(newValue);
             if (currentPinUser.equals(currentSetting) || currentPinUser.equals("")) {
                 Optional<FirmwareSetting> setting = getSettings().getSetting(currentSetting);
-                if (setting.isEmpty()) {
+                if ( setting.isEmpty() || currentSetting.equalsIgnoreCase("NO_PIN") ) {
                     getSettings().setValue(currentSetting, newValue);
                 } else {
                     String[] split = setting.get().getKey().split("[:]");
-                    split[0] = newValue;
+                    split[0] = newValue;                    
                     getSettings().setValue(currentSetting, String.join(":", split));
                 }
             } else {

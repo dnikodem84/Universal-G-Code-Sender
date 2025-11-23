@@ -243,7 +243,20 @@ public class FluidNCController implements IController, ICommunicatorListener {
         communicator.cancelSend();
         communicator.sendByteImmediately(GrblUtils.GRBL_RESET_COMMAND);
     }
-
+    
+    @Override
+    public void issueHardReset() throws Exception {
+        messageService.dispatchMessage(MessageType.INFO, "*** Resetting controller\n");
+        isInitialized = false;
+        positionPollTimer.stop();
+        setControllerState(ControllerState.CONNECTING);
+        resetBuffers();
+        communicator.cancelSend();
+        SystemCommand hardReset = new SystemCommand("$System/Control=RESTART");
+        sendAndWaitForCompletion(this, hardReset);
+        resetBuffers();        
+    }
+    
     @Override
     public void requestStatusReport() throws Exception {
         communicator.sendByteImmediately(GrblUtils.GRBL_STATUS_COMMAND);

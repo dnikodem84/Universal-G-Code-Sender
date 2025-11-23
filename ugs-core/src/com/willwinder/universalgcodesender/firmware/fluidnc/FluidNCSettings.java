@@ -19,6 +19,7 @@
 package com.willwinder.universalgcodesender.firmware.fluidnc;
 
 import com.willwinder.universalgcodesender.IController;
+import com.willwinder.universalgcodesender.IFileService;
 import com.willwinder.universalgcodesender.Utils;
 import com.willwinder.universalgcodesender.firmware.FirmwareSetting;
 import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
@@ -27,17 +28,21 @@ import com.willwinder.universalgcodesender.firmware.IFirmwareSettingsListener;
 import com.willwinder.universalgcodesender.firmware.fluidnc.commands.FluidNCCommand;
 import com.willwinder.universalgcodesender.firmware.fluidnc.commands.GetFirmwareSettingsCommand;
 import com.willwinder.universalgcodesender.firmware.fluidnc.commands.GetSetCurrentConfigFilename;
+import com.willwinder.universalgcodesender.firmware.fluidnc.commands.SystemCommand;
 import com.willwinder.universalgcodesender.model.Axis;
 import com.willwinder.universalgcodesender.model.Motor;
 import com.willwinder.universalgcodesender.model.UnitUtils;
 import com.willwinder.universalgcodesender.types.CommandException;
 import com.willwinder.universalgcodesender.utils.ControllerUtils;
+import java.io.IOException;
 import org.apache.commons.lang3.StringUtils;
 
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -47,6 +52,8 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.Yaml;
 
 /**
  * @author Joacim Breiler
@@ -93,26 +100,109 @@ public class FluidNCSettings implements IFirmwareSettings {
     
     @Override
     public void saveFirmwareSettings() throws FirmwareSettingsException {
-        try{            
-            FluidNCCommand cmdPersist = new FluidNCCommand("$CD="+this.getConfigFilename());
-            ControllerUtils.sendAndWaitForCompletion(controller, cmdPersist);  
+        try {
+            System.err.println("saveFirmwareSettings");
+            FluidNCConfigYamlSettingsFile settings = new FluidNCConfigYamlSettingsFile(getConfigFilename(), controller);
+            settings.applyAllSettings(this);
+            if (!settings.hasUgsFlag()) {
+                settings.addUgsFlagIfNeeded();                
+            }
+            settings.uploadConfig();
+            System.err.println("saveFirmwareSettings FINISHED");
+            
         } catch (Exception e) {
             throw new FirmwareSettingsException("Couldn't save settings to the controller", e);
         }                
     }
-    
+//    public boolean patchFluidNcConfig(String key, String value) throws FirmwareSettingsException, InterruptedException, IOException {        
+//        GetFirmwareSettingsCommand getConfigCommand = new GetFirmwareSettingsCommand();
+//        ControllerUtils.sendAndWaitForCompletion(controller, getConfigCommand);
+//        Map<String,Object> config = getConfigCommand.getSettingsTree();
+//        Optional<FirmwareSetting> meta = this.getSetting("meta");
+////        if ( meta.isPresent() && meta.get().getValue().endsWith(" [UGS]")) {
+////            // UGS Controlled config. 
+////        } else {
+////            return false;
+////        }
+//       // config.put(key, value);
+//        String m = "" + config.get("meta");
+//        if (m.endsWith(" [UGS]")) {
+//            
+//        }else {
+//            config.put("meta",m + " [UGS]");
+//        }
+//        String split[] = key.split("[/]");
+//        int idx = 0;
+//        Map<String,Object> insertPoint = config;
+//        boolean going = true;
+//        while (going) {
+//            String subKeyName = split[idx];
+//            if (idx == (split.length-1)) {
+//                // End of list. Do Insert.
+//                insertPoint.put(subKeyName, value);
+//            } else {
+//                if ( insertPoint.containsKey(subKeyName) ) {                    
+//                    insertPoint = (Map<String,Object>)insertPoint.get(subKeyName);
+//                } else {
+//                    Map<String,Object> newKey = new LinkedHashMap<>();
+//                    insertPoint.put(subKeyName, newKey);
+//                    insertPoint = newKey;
+//                }
+//            }
+//            idx++;
+//            if (idx == (split.length)) {
+//                going = false;
+//            }
+//            
+//        }
+//        final DumperOptions options = new DumperOptions();
+//        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+//        options.setPrettyFlow(true);
+//        Yaml yaml = new Yaml(options);
+//        String newConfig = yaml.dump(config);
+////        String configFilename = getConfigFilename();
+//        System.err.println("-NEW CONFIG----------------------------------------------------");
+//        System.err.println(newConfig);
+//        System.err.println("---------------------------------------------------------------");
+//        System.err.println("About to upload");
+//        IFileService fileservice = controller.getFileService();
+//        fileservice.uploadFile("/localfs/"+getConfigFilename(), newConfig.getBytes());
+//        setConfigFilename(getConfigFilename());
+//        System.err.println("Finished Upload");
+//         GetFirmwareSettingsCommand getConfigCommandB = new GetFirmwareSettingsCommand();
+//        ControllerUtils.sendAndWaitForCompletion(controller, getConfigCommandB);
+//        System.err.println("-Controller Config---------------------------------------------");
+//        System.err.println(getConfigCommandB.getResponse());
+//        System.err.println("---------------------------------------------------------------");
+//        
+//        
+//        // TODO: 
+////        1) patch uart1/passhthrough_port so its valid. 
+////        2) reset config filename then reboot controller ()
+////        try {
+////            controller.issueSoftReset();
+////        } catch (Exception e) {
+////            throw new FirmwareSettingsException("Error performing soft reset");
+////        }
+//        
+////        System.err.println(newConfig);
+////        System.out.println(newConfig);
+//        return true;
+//    }
     @Override
     public FirmwareSetting setValue(String key, String value) throws FirmwareSettingsException {
         try {
             key = key.toLowerCase();
+            System.err.println(">>>>>>>>>>>setValue("+key+","+value+")");
             if (!settings.containsKey(key) || !settings.get(key).getValue().equals(value)) {
                 FluidNCCommand systemCommand = new FluidNCCommand("$/" + key + "=" + value);
-                ControllerUtils.sendAndWaitForCompletion(controller, systemCommand);
+                ControllerUtils.sendAndWaitForCompletion(controller, systemCommand,6000);
+                System.err.println ("Response:" + systemCommand.getResponse());
                 if (systemCommand.isOk()) {
-                    FluidNCCommand checkCommand = new FluidNCCommand("$/" + key);
-                    ControllerUtils.sendAndWaitForCompletion(controller, systemCommand);
-                    String test = checkCommand.getResponse();
-                    System.out.println(test);
+                    if (systemCommand.getResponse().contains("Runtime setting of Pin objects is not supported")) {                        
+                        Logger.getLogger(FluidNCSettings.class.getName()).log(Level.WARNING, "Runtime setting of Pin objects is not supported : settings will only be applied after controller reboot");
+                    }
+
                     FirmwareSetting firmwareSetting = new FirmwareSetting(key, value, "", "", "");
                     settings.put(key, firmwareSetting);
                     listeners.forEach(l -> l.onUpdatedFirmwareSetting(firmwareSetting));
@@ -128,7 +218,7 @@ public class FluidNCSettings implements IFirmwareSettings {
     public String getConfigFilename() throws FirmwareSettingsException {
         try {
             GetSetCurrentConfigFilename cmd = new GetSetCurrentConfigFilename();
-            ControllerUtils.sendAndWaitForCompletion(controller, cmd);
+            ControllerUtils.sendAndWaitForCompletion(controller, cmd,6000);
             return cmd.GetFilename();
         } catch ( Exception e) {
             throw new FirmwareSettingsException("Couldn't get Config Filename", e);    
@@ -138,7 +228,7 @@ public class FluidNCSettings implements IFirmwareSettings {
     public void setConfigFilename(String newFilename) throws FirmwareSettingsException {
         try {
             GetSetCurrentConfigFilename cmd = new GetSetCurrentConfigFilename(newFilename);
-            ControllerUtils.sendAndWaitForCompletion(controller, cmd);            
+            ControllerUtils.sendAndWaitForCompletion(controller, cmd, 6000);            
         } catch ( Exception e) {
             throw new FirmwareSettingsException("Couldn't get Config Filename", e);    
         }        
@@ -229,7 +319,7 @@ public class FluidNCSettings implements IFirmwareSettings {
         return checkMotorHasEndstop(Axis.Z, Motor.M1);
     }    
     
-    private void setHardLimitEnabled(Axis axis,Motor motor,boolean enabled) throws FirmwareSettingsException{
+    private void setHardLimitEnabled(Axis axis,Motor motor,boolean enabled) throws FirmwareSettingsException {
         if (checkMotorHasEndstop(axis, motor)) {
             setValue("axes/"+axis.name().toLowerCase()+"/"+motor+"/hard_limits", enabled ? "true" : "false");
         }
@@ -426,10 +516,20 @@ public class FluidNCSettings implements IFirmwareSettings {
 
     @Override
     public int getMaxSpindleSpeed() throws FirmwareSettingsException {
+        // Huanyang YL620 H100 NowForever SiemensV20 ModbusVFD hbridge laser 10V pwm dac relay
         return Stream.of(getSpeedMap("laser/speed_map"),
                         getSpeedMap("10V/speed_map"),
                         getSpeedMap("pwm/speed_map"),
-                        getSpeedMap("besc/speed_map"))
+                        getSpeedMap("dac/speed_map"),           
+                        getSpeedMap("relay/speed_map"),       
+                        getSpeedMap("Huanyang/speed_map"),
+                        getSpeedMap("YL620/speed_map"),           
+                        getSpeedMap("H100/speed_map"),   
+                        getSpeedMap("NowForever/speed_map"),
+                        getSpeedMap("SiemensV20/speed_map"),           
+                        getSpeedMap("ModbusVFD/speed_map"),   
+                        getSpeedMap("hbridge/speed_map"),                           
+                        getSpeedMap("besc/speed_map")) // Depricated
                 .filter(Optional::isPresent)
                 .map(Optional::get)
                 .map(SpeedMap::getMax)
@@ -441,4 +541,116 @@ public class FluidNCSettings implements IFirmwareSettings {
     public void refreshFirmwareSettings() throws FirmwareSettingsException, CommandException {
         this.refresh();
     }
+}
+
+class FluidNCConfigYamlSettingsFile {
+        private final IController controller;
+        private Map<String,Object> outputConfigData;
+        private String filename;
+        private final static String UGS_FLAG = " [UGS]";
+
+        public FluidNCConfigYamlSettingsFile(String filename, IController controller){
+            this.filename = filename;
+            this.controller = controller;
+        }
+        
+        private void queryControllerForCurrentSettings() throws FirmwareSettingsException, InterruptedException, IOException {            
+            GetFirmwareSettingsCommand getConfigFileCommand = ControllerUtils.sendAndWaitForCompletion(controller, new GetFirmwareSettingsCommand(filename));
+            outputConfigData = GetFirmwareSettingsCommand.getSettingsTree(getConfigFileCommand.getResponse());
+            System.err.println("-------");
+            System.err.print(getConfigFileCommand.getResponse());
+            System.err.println("-------");
+            
+        }
+        private void refreshFromController() throws FirmwareSettingsException, InterruptedException, IOException {
+            if (outputConfigData == null) {
+                queryControllerForCurrentSettings();
+            }
+            if (outputConfigData == null) {
+                throw new FirmwareSettingsException("Could not download original config. ");
+            }    
+        }
+        
+        public void applyAllSettings(IFirmwareSettings settings) throws FirmwareSettingsException, InterruptedException, IOException {
+            for ( FirmwareSetting f : settings.getAllSettings() ) {
+                setValue(f.getKey(), f.getValue());
+            }
+        }
+        
+        public void setValue(String key, String value) throws FirmwareSettingsException, InterruptedException, IOException {
+            refreshFromController();
+            String split[] = key.split("[/]");
+            int idx = 0;
+            Map<String,Object> insertPoint = outputConfigData;
+            boolean going = true;
+            while (going) {
+                String subKeyName = split[idx];
+                if (idx == (split.length-1)) {
+                    // End of list. Do Insert.
+                    insertPoint.put(subKeyName, value);
+                } else {
+                    if ( insertPoint.containsKey(subKeyName) ) {                    
+                        insertPoint = (Map<String,Object>)insertPoint.get(subKeyName);
+                    } else {
+                        Map<String,Object> newKey = new LinkedHashMap<>();
+                        insertPoint.put(subKeyName, newKey);
+                        insertPoint = newKey;
+                    }
+                }
+                idx++;
+                if (idx == (split.length)) {
+                    going = false;
+                }
+            }
+        }
+        
+        public boolean hasUgsFlag() throws FirmwareSettingsException, InterruptedException, IOException {
+            refreshFromController();
+            String meta = ""+outputConfigData.get("meta");
+            return (meta.endsWith(UGS_FLAG));
+        }
+        
+        public void addUgsFlagIfNeeded() throws FirmwareSettingsException, InterruptedException, IOException {
+            System.err.println("addUgsFlagIfNeeded");
+            if (!hasUgsFlag()) {
+                outputConfigData.put("meta", ""+outputConfigData.get("meta") + UGS_FLAG);
+                String split[] = filename.split("[.]");
+                split[0] = split[0] + "-ugs";
+                filename = String.join(".", split);
+                System.err.println("Updated Filename: " + filename);
+            }            
+        }
+        public void patchConfigBugs() {
+            // //
+            // FluidNC does not properly init "uart1/passthrough_mode" field in memory
+            // it appears to default to "80.0" which when re-saved via $CD= causes the
+            // controller to panic in the next reboot and not finish reading its entire 
+            // config.yaml.
+            if (outputConfigData.containsKey("uart1")) {
+                Map<String,Object> uart1 = (Map<String,Object>)outputConfigData.get("uart1");
+                if (uart1.containsKey("passthrough_mode")) {
+                    String toPatch = "" + uart1.get("passthrough_mode");
+                    if ( (toPatch.length() != 3) || (toPatch.length() != 5)) {
+                        uart1.put("passthrough_mode", "8N1");
+                    }
+                }
+            }
+        }
+        private String configAsString() {
+            final DumperOptions options = new DumperOptions();
+            options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+            options.setPrettyFlow(true);
+            Yaml yaml = new Yaml(options);
+            return yaml.dump(outputConfigData);
+        }
+        
+        public void uploadConfig() throws Exception, IOException, FirmwareSettingsException {            
+            IFileService fileservice = controller.getFileService();
+            patchConfigBugs();
+            String dataToUpload=configAsString();
+            fileservice.uploadFile("/localfs/"+filename, dataToUpload.getBytes());
+            controller.getFirmwareSettings().setConfigFilename(filename);
+            controller.issueHardReset();
+        }
+
 }

@@ -31,32 +31,39 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public class GetFirmwareSettingsCommand extends SystemCommand {
-
+public class GetFirmwareSettingsCommand extends SystemCommand {    
+    
     public GetFirmwareSettingsCommand() {
         super("$Config/Dump");
     }
-
+    
+    public GetFirmwareSettingsCommand(String aConfigFile) {
+        super("$localfs/show="+aConfigFile);
+    }
+    
     public Map<String, String> getSettings() {
         if (!isOk()) {
             return new HashMap<>();
         }
 
+        return flatten(getSettingsTree(getResponse()));        
+    }
+    
+    public static Map<String,Object> getSettingsTree(String rawConfigString) throws CommandException {
+
         String response = Arrays
-                .stream(getResponse().split("\\r?\\n"))
+                .stream(rawConfigString.split("\\r?\\n"))
                 .filter(line -> !line.startsWith("[MSG:"))
                 .filter(line -> !line.equals("ok"))
                 .collect(Collectors.joining("\n"));
 
         try {
             Yaml yaml = new Yaml();
-            Map<String, Object> settingsTree = yaml.load(response);
-            return flatten(settingsTree);
+            return yaml.load(response);                        
         } catch (YAMLException e) {
             throw new CommandException(e);
         }
     }
-
     private Map<String, String> flatten(Map<String, Object> mapToFlatten) {
         return mapToFlatten.entrySet()
                 .stream()

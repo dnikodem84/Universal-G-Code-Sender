@@ -21,6 +21,7 @@ package com.willwinder.ugs.nbp.setupwizard.panels;
 import com.willwinder.ugs.nbp.setupwizard.AbstractWizardPanel;
 import com.willwinder.ugs.nbp.setupwizard.NavigationButtons;
 import com.willwinder.ugs.nbp.setupwizard.WizardUtils;
+import com.willwinder.ugs.nbp.setupwizard.components.BooleanSettingComboBox;
 import com.willwinder.ugs.nbp.setupwizard.components.PinSettingComboBox;
 import com.willwinder.universalgcodesender.firmware.FirmwareSetting;
 import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
@@ -121,18 +122,27 @@ public class WizardPanelProbeSetup extends AbstractWizardPanel implements UGSEve
         JCheckBox checkboxProbeHardLimit = new JCheckBox(Localization.getString("platform.plugin.setupwizard.probe-panel.probehardlimit-label"));
         JPanel pnlMain = new JPanel(new GridLayout(10,1));
         
+        BooleanSettingComboBox comboboxCheckModeStart = new BooleanSettingComboBox(this,"probe/check_mode_start", true);//);
+        BooleanSettingComboBox comboboxHardStop = new BooleanSettingComboBox(this,"probe/hard_stop", false);//);
+                //= new JCheckBox(Localization.getString("platform.plugin.setupwizard.probe-panel.hardstop-label"));
+        BooleanSettingComboBox comboboxProbeHardLimit = new BooleanSettingComboBox(this,"probe/probe_hard_limit", false);//);
+                //= new JCheckBox(Localization.getString("platform.plugin.setupwizard.probe-panel.probehardlimit-label"));
 
+//        BooleanSettingComboBox
 
 //
         pnlMain.add(makeProbePanel(Localization.getString("platform.plugin.setupwizard.probe-panel.probe-pin-label"), comboBoxProbePin));
         pnlMain.add(makeDescrLabel(Localization.getString("platform.plugin.setupwizard.probe-panel.probe-pin-desc")));
         pnlMain.add(makeProbePanel(Localization.getString("platform.plugin.setupwizard.probe-panel.toolsetter-pin-label"), comobBoxProbeToolsetterPin));
         pnlMain.add(makeDescrLabel(Localization.getString("platform.plugin.setupwizard.probe-panel.toolsetter-pin-desc")));
-        pnlMain.add(checkboxCheckModeStart);        
-        pnlMain.add(makeDescrLabel(Localization.getString("platform.plugin.setupwizard.probe-panel.checkmodestart-desc")));
-        pnlMain.add(checkboxHardStop);
+//        pnlMain.add(checkboxCheckModeStart);        
+        pnlMain.add(makeProbePanel(Localization.getString("platform.plugin.setupwizard.probe-panel.checkmodestart-label"), comboboxCheckModeStart));        
+        pnlMain.add(makeDescrLabel(Localization.getString("platform.plugin.setupwizard.probe-panel.checkmodestart-desc")));      
+//        pnlMain.add(checkboxHardStop);
+        pnlMain.add(makeProbePanel(Localization.getString("platform.plugin.setupwizard.probe-panel.hardstop-label"), comboboxHardStop));        
         pnlMain.add(makeDescrLabel(Localization.getString("platform.plugin.setupwizard.probe-panel.hardstop-desc")));        
-        pnlMain.add(checkboxProbeHardLimit);
+//        pnlMain.add(checkboxProbeHardLimit);
+        pnlMain.add(makeProbePanel(Localization.getString("platform.plugin.setupwizard.probe-panel.probehardlimit-label"), comboboxProbeHardLimit));        
         pnlMain.add(makeDescrLabel(Localization.getString("platform.plugin.setupwizard.probe-panel.probehardlimit-desc")));
         return pnlMain;
         
