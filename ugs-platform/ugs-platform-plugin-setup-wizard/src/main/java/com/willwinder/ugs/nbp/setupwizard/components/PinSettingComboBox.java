@@ -17,7 +17,6 @@
 package com.willwinder.ugs.nbp.setupwizard.components;
 
 import com.willwinder.ugs.nbp.setupwizard.AbstractWizardPanel;
-import com.willwinder.ugs.nbp.setupwizard.panels.WizardPanelProbeSetup;
 import com.willwinder.universalgcodesender.firmware.FirmwareSetting;
 import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
 import com.willwinder.universalgcodesender.firmware.IFirmwareSettings;
@@ -71,9 +70,9 @@ class PinSettingComboRenderer extends BasicComboBoxRenderer {
     public Component getListCellRendererComponent(JList list, Object value, int index, boolean isSelected, boolean cellHasFocus) {
         String pinOwner = getPinOwner("" + value);
         if (pinOwner.equals(currentSetting)) {
-            value = "<html><body><font color='green'>" + value + "</font> : <font color='grey'>" + pinOwner + "</font></body></html>";
+            value = "<html><body><font color='green'>" + value + "</font> : <font color='gray' size='-1'>" + pinOwner + "</font></body></html>";
         } else if (!pinOwner.equals("")) {
-            value = "<html><body><font color='red'>" + value + "</font> : <font color='grey'>" + pinOwner + "</font></body></html>";
+            value = "<html><body><font color='red'>" + value + "</font> : <font color='gray' size='-1'>" + pinOwner + "</font></body></html>";
         }
 
         super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
