@@ -21,6 +21,10 @@ package com.willwinder.universalgcodesender.firmware.fluidnc.commands;
 import com.willwinder.universalgcodesender.types.CommandException;
 import org.yaml.snakeyaml.Yaml;
 import org.yaml.snakeyaml.error.YAMLException;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.LoaderOptions;
+import org.yaml.snakeyaml.constructor.Constructor;
+import org.yaml.snakeyaml.representer.Representer;
 
 import java.util.AbstractMap;
 import java.util.Arrays;
@@ -30,6 +34,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.yaml.snakeyaml.nodes.Tag;
+import org.yaml.snakeyaml.resolver.Resolver;
 
 public class GetFirmwareSettingsCommand extends SystemCommand {    
     
@@ -58,7 +64,8 @@ public class GetFirmwareSettingsCommand extends SystemCommand {
                 .collect(Collectors.joining("\n"));
 
         try {
-            Yaml yaml = new Yaml();
+            Yaml yaml = new Yaml(new Constructor(new LoaderOptions()), new Representer(new DumperOptions()),
+                new DumperOptions(), new YamlResolverNoFloatNoDate());
             return yaml.load(response);                        
         } catch (YAMLException e) {
             throw new CommandException(e);
@@ -86,4 +93,22 @@ public class GetFirmwareSettingsCommand extends SystemCommand {
 
         return Stream.of(entry);
     }
+}
+
+class YamlResolverNoFloatNoDate extends Resolver {
+
+  /*
+   * do not resolve float and timestamp
+   */
+  @Override
+  protected void addImplicitResolvers() {
+    addImplicitResolver(Tag.BOOL, BOOL, "yYnNtTfFoO");
+    // addImplicitResolver(Tag.FLOAT, FLOAT, "-+0123456789.");
+    addImplicitResolver(Tag.INT, INT, "-+0123456789");
+    addImplicitResolver(Tag.MERGE, MERGE, "<");
+    addImplicitResolver(Tag.NULL, NULL, "~nN\0");
+    addImplicitResolver(Tag.NULL, EMPTY, null);
+    // addImplicitResolver(Tag.TIMESTAMP, TIMESTAMP, "0123456789");
+  }
+  
 }

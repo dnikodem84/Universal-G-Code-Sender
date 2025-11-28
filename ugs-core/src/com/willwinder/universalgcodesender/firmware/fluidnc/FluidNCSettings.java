@@ -53,6 +53,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Stream;
 import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.LoaderOptions;
 import org.yaml.snakeyaml.Yaml;
 
 /**
@@ -639,8 +640,9 @@ class FluidNCConfigYamlSettingsFile {
         private String configAsString() {
             final DumperOptions options = new DumperOptions();
             options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
-            options.setPrettyFlow(true);
+            options.setPrettyFlow(true);            
             Yaml yaml = new Yaml(options);
+            
             return yaml.dump(outputConfigData);
         }
         

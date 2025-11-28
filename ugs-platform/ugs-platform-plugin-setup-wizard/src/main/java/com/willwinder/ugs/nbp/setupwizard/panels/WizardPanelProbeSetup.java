@@ -126,7 +126,6 @@ public class WizardPanelProbeSetup extends AbstractWizardPanel implements UGSEve
 
     @Override
     public void UGSEvent(UGSEvent event) {
-
         if (getBackend().getController() != null && getBackend().isConnected() && event instanceof ControllerStatusEvent) {
             WizardUtils.killAlarm(getBackend());
         } else if (event instanceof FirmwareSettingEvent) {
