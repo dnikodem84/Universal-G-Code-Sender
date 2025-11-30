@@ -19,25 +19,47 @@
 package com.willwinder.universalgcodesender.firmware.fluidnc.commands;
 
 import com.willwinder.universalgcodesender.types.CommandException;
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.error.YAMLException;
-import org.yaml.snakeyaml.DumperOptions;
-import org.yaml.snakeyaml.LoaderOptions;
-import org.yaml.snakeyaml.constructor.Constructor;
-import org.yaml.snakeyaml.representer.Representer;
 
+import org.snakeyaml.engine.v2.api.Load;
+import org.snakeyaml.engine.v2.api.LoadSettings;
+import org.snakeyaml.engine.v2.exceptions.YamlEngineException;
+import org.snakeyaml.engine.v2.nodes.Tag;
+import org.snakeyaml.engine.v2.resolver.JsonScalarResolver;
+import org.snakeyaml.engine.v2.resolver.ScalarResolver;
+import org.snakeyaml.engine.v2.schema.JsonSchema;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import org.yaml.snakeyaml.nodes.Tag;
-import org.yaml.snakeyaml.resolver.Resolver;
+//import org.yaml.snakeyaml.nodes.Tag;
+//import org.yaml.snakeyaml.resolver.Resolver;
 
-public class GetFirmwareSettingsCommand extends SystemCommand {    
+public class GetFirmwareSettingsCommand extends SystemCommand {
+
+    static class InternalSchema extends JsonSchema {
+        @Override
+        public ScalarResolver getScalarResolver() {
+            return new InternalResolver();
+        }
+    }
+    static class InternalResolver extends JsonScalarResolver {
+        public static final Pattern SIMPLE_FLOAT =
+                Pattern.compile("^(-?(0|[1-9][0-9]*)(\\.[0-9]*)?)$");
+        @Override
+        protected void addImplicitResolvers() {
+            addImplicitResolver(Tag.NULL, EMPTY, null);
+            addImplicitResolver(Tag.BOOL, BOOL, "tf");
+            addImplicitResolver(Tag.INT, INT, "-0123456789");
+            addImplicitResolver(Tag.NULL, NULL, "n\u0000");
+            addImplicitResolver(Tag.ENV_TAG, ENV_FORMAT, "$");
+            addImplicitResolver(Tag.FLOAT, SIMPLE_FLOAT, "-0123456789.");
+        }
+    }
     
     public GetFirmwareSettingsCommand() {
         super("$Config/Dump");
@@ -55,7 +77,7 @@ public class GetFirmwareSettingsCommand extends SystemCommand {
         return flatten(getSettingsTree(getResponse()));        
     }
     
-    public static Map<String,Object> getSettingsTree(String rawConfigString) throws CommandException {
+    public Map<String,Object> getSettingsTree(String rawConfigString) throws CommandException {
 
         String response = Arrays
                 .stream(rawConfigString.split("\\r?\\n"))
@@ -64,10 +86,16 @@ public class GetFirmwareSettingsCommand extends SystemCommand {
                 .collect(Collectors.joining("\n"));
 
         try {
-            Yaml yaml = new Yaml(new Constructor(new LoaderOptions()), new Representer(new DumperOptions()),
-                new DumperOptions(), new YamlResolverNoFloatNoDate());
-            return yaml.load(response);                        
-        } catch (YAMLException e) {
+            Load load = new Load(LoadSettings.builder()
+                    .setAllowDuplicateKeys(false)
+                    .setAllowNonScalarKeys(false)
+                    .setAllowRecursiveKeys(false)
+                    .setCodePointLimit(1_000_000) // ~1 MB
+                    .setMaxAliasesForCollections(10)
+                    .setSchema(new InternalSchema())
+                    .build());
+            return (Map<String, Object>) load.loadFromString(response);
+        } catch (YamlEngineException e) {
             throw new CommandException(e);
         }
     }
@@ -93,22 +121,4 @@ public class GetFirmwareSettingsCommand extends SystemCommand {
 
         return Stream.of(entry);
     }
-}
-
-class YamlResolverNoFloatNoDate extends Resolver {
-
-  /*
-   * do not resolve float and timestamp
-   */
-  @Override
-  protected void addImplicitResolvers() {
-    addImplicitResolver(Tag.BOOL, BOOL, "yYnNtTfFoO");
-    // addImplicitResolver(Tag.FLOAT, FLOAT, "-+0123456789.");
-    addImplicitResolver(Tag.INT, INT, "-+0123456789");
-    addImplicitResolver(Tag.MERGE, MERGE, "<");
-    addImplicitResolver(Tag.NULL, NULL, "~nN\0");
-    addImplicitResolver(Tag.NULL, EMPTY, null);
-    // addImplicitResolver(Tag.TIMESTAMP, TIMESTAMP, "0123456789");
-  }
-  
 }
