@@ -18,11 +18,13 @@
  */
 package com.willwinder.ugs.nbp.designer.platform;
 
-import com.willwinder.ugs.nbp.designer.gui.tree.EntitiesTree;
-import com.willwinder.ugs.nbp.designer.gui.tree.EntityTreeModel;
-import com.willwinder.ugs.nbp.designer.logic.Controller;
-import com.willwinder.ugs.nbp.designer.logic.ControllerFactory;
+import com.willwinder.ugs.designer.gui.tree.EntitiesTree;
+import com.willwinder.ugs.designer.gui.tree.EntitiesTreeController;
+import com.willwinder.ugs.designer.gui.tree.EntityTreeModel;
+import com.willwinder.ugs.designer.logic.Controller;
+import com.willwinder.ugs.designer.logic.ControllerFactory;
 import com.willwinder.ugs.nbp.lib.Mode;
+import com.willwinder.universalgcodesender.services.LookupService;
 import org.openide.windows.TopComponent;
 import org.openide.windows.WindowManager;
 
@@ -44,6 +46,7 @@ public class EntitiesTreeTopComponent extends TopComponent {
 
     private transient EntitiesTree entitesTree;
     private transient EntityTreeModel entitiesTreeModel;
+    private EntitiesTreeController entitiesTreeController;
 
     public EntitiesTreeTopComponent() {
         setMinimumSize(new java.awt.Dimension(50, 50));
@@ -71,6 +74,7 @@ public class EntitiesTreeTopComponent extends TopComponent {
 
         entitiesTreeModel.release();
         entitiesTreeModel = null;
+        LookupService.remove(entitiesTreeController.getClass());
     }
 
     @Override
@@ -79,7 +83,8 @@ public class EntitiesTreeTopComponent extends TopComponent {
         Controller controller = ControllerFactory.getController();
         entitiesTreeModel = new EntityTreeModel(controller);
         entitesTree = new EntitiesTree(controller, entitiesTreeModel);
-
+        entitiesTreeController = new EntitiesTreeController(entitesTree);
+        LookupService.register(entitiesTreeController);
         removeAll();
         add(new JScrollPane(entitesTree), BorderLayout.CENTER);
     }

@@ -18,7 +18,6 @@
  */
 package com.willwinder.ugs.nbp.core.actions;
 
-import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.ugs.nbp.lib.services.LocalizingService;
 import com.willwinder.universalgcodesender.gcode.ICommandCreator;
 import com.willwinder.universalgcodesender.gcode.util.Code;
@@ -32,6 +31,7 @@ import com.willwinder.universalgcodesender.model.UGSEvent;
 import com.willwinder.universalgcodesender.model.UnitUtils;
 import com.willwinder.universalgcodesender.model.events.ControllerStateEvent;
 import com.willwinder.universalgcodesender.model.events.FileStateEvent;
+import com.willwinder.universalgcodesender.services.LookupService;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
 import com.willwinder.universalgcodesender.uielements.helpers.LoaderDialogHelper;
 import com.willwinder.universalgcodesender.utils.GUIHelpers;
@@ -86,7 +86,7 @@ public final class OutlineAction extends ProgramAction implements UGSEventListen
     private final transient BackendAPI backend;
 
     public OutlineAction() {
-        this.backend = CentralLookup.getDefault().lookup(BackendAPI.class);
+        this.backend = LookupService.lookup(BackendAPI.class);
         this.backend.addUGSEventListener(this);
 
         putValue("iconBase", ICON_BASE);
@@ -163,10 +163,10 @@ public final class OutlineAction extends ProgramAction implements UGSEventListen
 
         GcodeViewParse gcvp = new GcodeViewParse();
         try (IGcodeStreamReader gsr = new GcodeStreamReader(gcodeFile, backend.getCommandCreator())) {
-            result = gcvp.toObjFromReader(gsr, ARC_SEGMENT_LENGTH);
+            result = gcvp.toObjFromReader(gsr, ARC_SEGMENT_LENGTH, 0);
         } catch (GcodeStreamReader.NotGcodeStreamFile e) {
             List<String> linesInFile = VisualizerUtils.readFiletoArrayList(gcodeFile.getAbsolutePath());
-            result = gcvp.toObjRedux(linesInFile, ARC_SEGMENT_LENGTH);
+            result = gcvp.toObjRedux(linesInFile, ARC_SEGMENT_LENGTH, 0);
         }
 
         return result;

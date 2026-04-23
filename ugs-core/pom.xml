@@ -40,8 +40,8 @@
             <version>${gson.version}</version>
         </dependency>
         <dependency>
-            <groupId>org.yaml</groupId>
-            <artifactId>snakeyaml</artifactId>
+            <groupId>org.snakeyaml</groupId>
+            <artifactId>snakeyaml-engine</artifactId>
             <version>${ugs.snakeyaml.version}</version>
         </dependency>
         <dependency>
@@ -98,11 +98,32 @@
             <version>${zxing.version}</version>
         </dependency>
 
+        <!-- For geometric operations -->
+        <dependency>
+            <groupId>org.locationtech.jts</groupId>
+            <artifactId>jts-core</artifactId>
+            <version>${jts.version}</version>
+        </dependency>
+
         <!-- For scripting -->
         <dependency>
             <groupId>org.openjdk.nashorn</groupId>
             <artifactId>nashorn-core</artifactId>
             <version>${ugs.nashorn-core.version}</version>
+        </dependency>
+
+        <!-- For classpath scanning -->
+        <dependency>
+            <groupId>io.github.classgraph</groupId>
+            <artifactId>classgraph</artifactId>
+            <version>${classgraph.version}</version>
+        </dependency>
+
+        <!-- For loading SVG icons -->
+        <dependency>
+            <groupId>com.github.weisj</groupId>
+            <artifactId>jsvg</artifactId>
+            <version>${jsvg.version}</version>
         </dependency>
     </dependencies>
 

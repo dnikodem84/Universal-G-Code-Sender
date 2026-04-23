@@ -49,6 +49,7 @@ import com.willwinder.universalgcodesender.firmware.fluidnc.commands.GetStatusCo
 import com.willwinder.universalgcodesender.firmware.fluidnc.commands.SystemCommand;
 import com.willwinder.universalgcodesender.firmware.grbl.GrblCapabilitiesConstants;
 import com.willwinder.universalgcodesender.firmware.grbl.GrblOverrideManager;
+import com.willwinder.universalgcodesender.firmware.grbl.commands.GrblProbeCommand;
 import com.willwinder.universalgcodesender.gcode.GcodeParser;
 import com.willwinder.universalgcodesender.gcode.GcodeState;
 import com.willwinder.universalgcodesender.gcode.ICommandCreator;
@@ -66,9 +67,11 @@ import com.willwinder.universalgcodesender.model.Position;
 import com.willwinder.universalgcodesender.model.UnitUtils;
 import static com.willwinder.universalgcodesender.model.UnitUtils.Units.MM;
 import static com.willwinder.universalgcodesender.model.UnitUtils.scaleUnits;
+import com.willwinder.universalgcodesender.model.UnitValue;
 import com.willwinder.universalgcodesender.services.MessageService;
 import com.willwinder.universalgcodesender.types.CommandException;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
+import com.willwinder.universalgcodesender.types.ProbeGcodeCommand;
 import com.willwinder.universalgcodesender.utils.ControllerUtils;
 import static com.willwinder.universalgcodesender.utils.ControllerUtils.sendAndWaitForCompletion;
 import com.willwinder.universalgcodesender.utils.IGcodeStreamReader;
@@ -150,7 +153,7 @@ public class FluidNCController implements IController, ICommunicatorListener {
     }
 
     @Override
-    public void returnToHome(double safetyHeightInMm) throws Exception {
+    public void returnToHome(double safetyHeightInMm) {
         if (!isIdle()) {
             return;
         }
@@ -219,12 +222,25 @@ public class FluidNCController implements IController, ICommunicatorListener {
     }
 
     @Override
-    public void viewParserState() throws Exception {
+    public void viewParserState() {
         if (isCommOpen()) {
             sendCommandImmediately(new FluidNCCommand(GrblUtils.GRBL_VIEW_PARSER_STATE_COMMAND));
         }
     }
-
+    
+    @Override
+    public void issueHardReset() throws Exception {
+        messageService.dispatchMessage(MessageType.INFO, "*** Resetting controller\n");
+        isInitialized = false;
+        positionPollTimer.stop();
+        setControllerState(ControllerState.CONNECTING);
+        resetBuffers();
+        communicator.cancelSend();
+        SystemCommand hardReset = new SystemCommand("$System/Control=RESTART");
+        sendAndWaitForCompletion(this, hardReset);
+        resetBuffers();        
+    }
+    
     @Override
     public void issueSoftReset() throws Exception {
         messageService.dispatchMessage(MessageType.INFO, "*** Resetting controller\n");
@@ -381,7 +397,7 @@ public class FluidNCController implements IController, ICommunicatorListener {
     }
 
     @Override
-    public Boolean isReadyToStreamFile() throws Exception {
+    public Boolean isReadyToStreamFile() {
         return controllerStatus.getState() == ControllerState.IDLE;
     }
 
@@ -530,7 +546,8 @@ public class FluidNCController implements IController, ICommunicatorListener {
         ControllerState state = this.controllerStatus == null ? ControllerState.DISCONNECTED : this.controllerStatus.getState();
         return ControllerUtils.getCommunicatorState(state, this, communicator);
     }
-
+    
+    
     private void initializeController() {
         positionPollTimer.stop();
         gcodeParser.reset();
@@ -540,7 +557,9 @@ public class FluidNCController implements IController, ICommunicatorListener {
         try {
             if (!FluidNCUtils.isControllerResponsive(this, messageService)) {
                 messageService.dispatchMessage(MessageType.INFO, "*** Device is in a holding or alarm state and needs to be reset\n");
+                Thread.sleep(200);
                 issueSoftReset();
+             
                 return;
             }
             disableEcho();
@@ -553,6 +572,7 @@ public class FluidNCController implements IController, ICommunicatorListener {
 
             messageService.dispatchMessage(MessageType.INFO, String.format("*** Connected to %s\n", getFirmwareVersion()));
             requestStatusReport();
+            
             positionPollTimer.start();
             isInitialized = true;
         } catch (Exception e) {
@@ -592,6 +612,7 @@ public class FluidNCController implements IController, ICommunicatorListener {
         capabilities.addCapability(CapabilitiesConstants.SOFT_LIMITS);
         capabilities.addCapability(CapabilitiesConstants.CONFIG_PERSISTANCE);
         capabilities.addCapability(CapabilitiesConstants.PER_AXIS_ENDSTOP_INVERSION);
+
 //        capabilities.addCapability(CapabilitiesConstants.PROBE_SETUP);      // let user configure which pin us used for probe.
 //        capabilities.addCapability(CapabilitiesConstants.LIMIT_PIN_SETUP);  // let user configure limit pins positions.
         capabilities.addCapability(CapabilitiesConstants.ADVANCED_HOMING);  // setup pulloff_mm  / mpos_mm    
@@ -883,5 +904,10 @@ public class FluidNCController implements IController, ICommunicatorListener {
     @Override
     public IOverrideManager getOverrideManager() {
         return overrideManager;
+    }
+
+    @Override
+    public ProbeGcodeCommand createProbeCommand(PartialPosition distance, UnitValue feedRate) {
+        return new GrblProbeCommand(distance, feedRate);
     }
 }

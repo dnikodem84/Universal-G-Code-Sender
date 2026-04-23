@@ -29,15 +29,15 @@ Below you will find the latest release of UGS.<br/> For older releases please vi
 Unpack and start the program ```bin/ugsplatform```
 
 
-| Latest release (v2.1.17)                                                                                                                                                       | Nightly build                                                                                                                                                                         |
+| Latest release (v2.1.22)                                                                                                                                                       | Nightly build                                                                                                                                                                         |
 |:------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|:--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| [![Windows 64-bit](pictures/os_windows.png) Windows 64-bit](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.17/win64-ugs-platform-app-2.1.17.zip)      | [![Windows 64-bit](pictures/os_windows.png) Windows 64-bit](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/win64-ugs-platform-app-2.0-SNAPSHOT.zip)      |
-| [![Mac OSX](pictures/os_mac.png) Mac OSX](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.17/macosx-x64-ugs-platform-app-2.1.17.dmg)                   | [![Mac OSX](pictures/os_mac.png) Mac OSX](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/macosx-x64-ugs-platform-app-2.0-SNAPSHOT.dmg)                   |
-| [![Mac OSX](pictures/os_mac.png) Mac OSX ARM64](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.17/macosx-aarch64-ugs-platform-app-2.1.17.dmg)         | [![Mac OSX ARM64](pictures/os_mac.png) Mac OSX ARM64](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/macosx-aarch64-ugs-platform-app-2.0-SNAPSHOT.dmg)   | 
-| [![Linux x64](pictures/os_linux.png) Linux 64-bit](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.17/linux-x64-ugs-platform-app-2.1.17.tar.gz)        | [![Linux x64](pictures/os_linux.png) Linux 64-bit](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/linux-x64-ugs-platform-app-2.0-SNAPSHOT.tar.gz)        |
-| [![Linux ARM](pictures/os_linux_arm.png) Linux ARM](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.17/linux-arm-ugs-platform-app-2.1.17.tar.gz)       | [![Linux ARM](pictures/os_linux_arm.png) Linux ARM](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/linux-arm-ugs-platform-app-2.0-SNAPSHOT.tar.gz)       |
-| [![Linux ARM](pictures/os_linux_arm.png) Linux ARM64](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.17/linux-aarch64-ugs-platform-app-2.1.17.tar.gz) | [![Linux ARM](pictures/os_linux_arm.png) Linux ARM64](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/linux-aarch64-ugs-platform-app-2.0-SNAPSHOT.tar.gz) | 
-| [![Zip](pictures/zip.png) All platforms](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.17/ugs-platform-app-2.1.17.zip)                               | [![Zip](pictures/zip.png) All platforms](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/ugs-platform-app-2.0-SNAPSHOT.zip)                               |
+| [![Windows 64-bit](pictures/os_windows.png) Windows 64-bit](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.22/win64-ugs-platform-app-2.1.22.zip)      | [![Windows 64-bit](pictures/os_windows.png) Windows 64-bit](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/win64-ugs-platform-app-2.0-SNAPSHOT.zip)      |
+| [![Mac OSX](pictures/os_mac.png) Mac OSX](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.22/macosx-x64-ugs-platform-app-2.1.22.dmg)                   | [![Mac OSX](pictures/os_mac.png) Mac OSX](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/macosx-x64-ugs-platform-app-2.0-SNAPSHOT.dmg)                   |
+| [![Mac OSX](pictures/os_mac.png) Mac OSX ARM64](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.22/macosx-aarch64-ugs-platform-app-2.1.22.dmg)         | [![Mac OSX ARM64](pictures/os_mac.png) Mac OSX ARM64](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/macosx-aarch64-ugs-platform-app-2.0-SNAPSHOT.dmg)   | 
+| [![Linux x64](pictures/os_linux.png) Linux 64-bit](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.22/linux-x64-ugs-platform-app-2.1.22.tar.gz)        | [![Linux x64](pictures/os_linux.png) Linux 64-bit](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/linux-x64-ugs-platform-app-2.0-SNAPSHOT.tar.gz)        |
+| [![Linux ARM](pictures/os_linux_arm.png) Linux ARM](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.22/linux-arm-ugs-platform-app-2.1.22.tar.gz)       | [![Linux ARM](pictures/os_linux_arm.png) Linux ARM](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/linux-arm-ugs-platform-app-2.0-SNAPSHOT.tar.gz)       |
+| [![Linux ARM](pictures/os_linux_arm.png) Linux ARM64](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.22/linux-aarch64-ugs-platform-app-2.1.22.tar.gz) | [![Linux ARM](pictures/os_linux_arm.png) Linux ARM64](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/linux-aarch64-ugs-platform-app-2.0-SNAPSHOT.tar.gz) | 
+| [![Zip](pictures/zip.png) All platforms](https://github.com/winder/Universal-G-Code-Sender/releases/download/v2.1.22/ugs-platform-app-2.1.22.zip)                               | [![Zip](pictures/zip.png) All platforms](https://github.com/winder/Universal-G-Code-Sender/releases/download/nightly/ugs-platform-app-2.0-SNAPSHOT.zip)                               |
 
 
 ## Screenshots
@@ -81,43 +81,43 @@ For development we use [Maven](http://maven.apache.org) and [Java 17](https://ad
 
 UGS Classic: 
 ```bash
-mvn install
-mvn exec:java -Dexec.mainClass="com.willwinder.universalgcodesender.MainWindow" -pl ugs-core
+./mvnw install
+./mvnw exec:java -Dexec.mainClass="com.willwinder.universalgcodesender.MainWindow" -pl ugs-core
 ```
 
 UGS Platform: 
 ```bash
-mvn install
-mvn nbm:run-platform -pl ugs-platform/application
+./mvnw install
+./mvnw nbm:run-platform -pl ugs-platform/application
 ```
 
 
 #### Execute all tests
 
 ```bash
-mvn test
+./mvnw test
 ```
 
 
 #### Building the self-executing JAR
 
 ```bash
-mvn install
-mvn package -pl ugs-classic
+./mvnw install
+./mvnw package -pl ugs-classic
 ```
 
 
 #### Build a UniversalGcodeSender.zip release file
 
 ```bash
-mvn package -pl ugs-classic assembly:assembly
+./mvnw package -pl ugs-classic assembly:assembly
 ```
 
 #### Develop via IntelliJ
 
 If you are more used to IntelliJ, you can also build, run and debug it there.
 
-- Run  `mvn nbm:run-platform -pl ugs-platform/application` once via terminal to build everything
+- Run  `./mvnw nbm:run-platform -pl ugs-platform/application` once via terminal to build everything
 - Import the Source, `File` -> `New` -> `Project from existing Sources`
 - Setup a new "Run Configuration", `Java Application`, with following settings:
   - Main Class: `org.netbeans.Main`

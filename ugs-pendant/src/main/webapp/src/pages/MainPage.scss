@@ -24,3 +24,28 @@
   padding-left: 10px;
   padding-right: 10px;
 }
+
+.mainPageRow {
+  height: 100%;
+  margin: 0;
+}
+
+.sideMenu {
+  height: 100%;
+  display: flex;
+}
+
+.sideMenu .navbar {
+  height: 100%;
+  width: 100%;
+  align-items: flex-start;
+}
+
+.mainContentCol {
+  padding: 0;
+}
+
+.mainContentContainer {
+  padding-top: 15px;
+  height: calc(100vh - 54px);
+}

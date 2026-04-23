@@ -19,7 +19,7 @@
 package com.willwinder.ugs.nbp.joystick;
 
 import com.willwinder.ugs.nbp.joystick.service.JoystickService;
-import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
+import com.willwinder.universalgcodesender.services.LookupService;
 import org.openide.modules.OnStop;
 
 /**
@@ -29,7 +29,7 @@ import org.openide.modules.OnStop;
 public class Shutdown implements Runnable {
     @Override
     public void run() {
-        JoystickService joystickService = CentralLookup.getDefault().lookup(JoystickService.class);
+        JoystickService joystickService = LookupService.lookup(JoystickService.class);
         if (joystickService != null) {
             joystickService.destroy();
             joystickService.removeAllListeners();

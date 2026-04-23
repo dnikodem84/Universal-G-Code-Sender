@@ -1,5 +1,5 @@
 /*
-    Copyright 2021 Will Winder
+    Copyright 2021-2026 Will Winder
 
     This file is part of Universal Gcode Sender (UGS).
 
@@ -18,13 +18,14 @@
  */
 package com.willwinder.ugs.nbp.designer.platform;
 
+import com.willwinder.ugs.designer.DesignerMain;
 import com.willwinder.ugs.nbp.core.services.FileFilterService;
-import com.willwinder.ugs.nbp.designer.actions.OpenAction;
-import com.willwinder.ugs.nbp.designer.actions.SimpleUndoManager;
-import com.willwinder.ugs.nbp.designer.actions.UndoManager;
-import com.willwinder.ugs.nbp.designer.logic.Controller;
-import com.willwinder.ugs.nbp.designer.logic.ControllerFactory;
-import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
+import com.willwinder.ugs.designer.actions.OpenAction;
+import com.willwinder.ugs.designer.actions.SimpleUndoManager;
+import com.willwinder.ugs.designer.actions.UndoManager;
+import com.willwinder.ugs.designer.logic.Controller;
+import com.willwinder.ugs.designer.logic.ControllerFactory;
+import com.willwinder.universalgcodesender.services.LookupService;
 import org.openide.modules.OnStart;
 import org.openide.util.Lookup;
 
@@ -37,13 +38,17 @@ public class Startup implements Runnable {
     @Override
     public void run() {
         UndoManager undoManager = new SimpleUndoManager();
-        CentralLookup.getDefault().add(undoManager);
+        LookupService.register(undoManager);
 
         // Register a controller
         Controller controller = ControllerFactory.getController();
-        CentralLookup.getDefault().add(controller);
-        CentralLookup.getDefault().add(controller.getUndoManager());
-        CentralLookup.getDefault().add(controller.getSelectionManager());
+        LookupService.register(controller);
+        LookupService.register(controller.getUndoManager());
+        LookupService.register(controller.getSelectionManager());
+        LookupService.register(new PlatformFileContext());
+
+        // Register all lookup providers
+        LookupService.discoverProviders(DesignerMain.class.getPackageName());
 
         // Registers the file types that can be opened in UGSs
         FileFilterService fileFilterService = Lookup.getDefault().lookup(FileFilterService.class);

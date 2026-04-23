@@ -8,12 +8,20 @@ with Java Swing. There are also a simplistic 3D scene graph and rendering API wh
 needed to create a more interactive visualizer. 
 
 The platform edition utilizes the Netbeans Platform which provides a ton of cool features, but is 
-quite heavy to work with. We are also constrained to the NetBeans way of doing things.
+quite heavy to work with. We are also constrained to the NetBeans way of doing things. Therefore we
+are cutting ties with the old platform code base and are rewriting it in JavaFX. 
 
 ## Icons
 
-Whenever I need a new icon I look at the filled Phosphor icons:
+Whenever a new icon is needed, look at the filled Phosphor icons:
 https://phosphoricons.com/
 
 Simply add them as SVG:s and use the SvgLoader to take care of the loading. It will also
 take care of the color tinting and sizing.
+
+## Settings
+
+The settings are stored using Javas preference system and are located here on each platform:
+* **Linux**: `~/.java/.userPrefs/com/willwinder/universalgcodesender`
+* **Windows**: `HKEY_CURRENT_USER\Software\JavaSoft\Prefs\com\willwinder\universalgcodesender`
+* **MacOSX**: `~/Library/Preferences/com.willwinder.universalgcodesender`

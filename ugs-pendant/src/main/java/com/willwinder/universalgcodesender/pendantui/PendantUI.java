@@ -76,7 +76,7 @@ public class PendantUI implements UGSEventListener {
      */
     public List<PendantURLBean> start() {
         port = backendAPI.getSettings().getPendantPort();
-        URI baseUri = UriBuilder.fromUri("http://localhost/").port(port).build();
+        URI baseUri = UriBuilder.fromUri("http://0.0.0.0/").port(port).build();
 
         server = JettyHttpContainerFactory.createServer(baseUri, false);
         ContextHandlerCollection contextHandlerCollection = new ContextHandlerCollection();
@@ -136,10 +136,10 @@ public class PendantUI implements UGSEventListener {
             while (addressEnum.hasMoreElements()) {
                 InetAddress addr = addressEnum.nextElement();
                 String hostAddress = addr.getHostAddress();
-                if (!hostAddress.contains(":") && !hostAddress.equals("127.0.0.1")) {
+                if (!hostAddress.contains(":")) {
                     String url = "http://" + hostAddress + ":" + port;
                     ByteArrayOutputStream bout = QRCode.from(url).to(ImageType.PNG).stream();
-                    out.add(new PendantURLBean(url, bout.toByteArray()));
+                    out.add(new PendantURLBean(url, networkInterface.getDisplayName(), bout.toByteArray()));
                     LOG.info(() -> "Listening on: " + url);
                 }
             }

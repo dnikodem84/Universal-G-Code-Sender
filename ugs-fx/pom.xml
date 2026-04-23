@@ -27,13 +27,18 @@
             <version>${project.version}</version>
         </dependency>
         <dependency>
-            <groupId>com.willwinder</groupId>
-            <artifactId>ugs-platform-plugin-dro</artifactId>
+            <groupId>com.willwinder.universalgcodesender</groupId>
+            <artifactId>ugs-cli</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>com.willwinder.universalgcodesender</groupId>
             <artifactId>ugs-pendant</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.willwinder.universalgcodesender</groupId>
+            <artifactId>ugs-designer</artifactId>
             <version>${project.version}</version>
         </dependency>
 
@@ -61,7 +66,7 @@
         <dependency>
             <groupId>com.github.weisj</groupId>
             <artifactId>jsvg</artifactId>
-            <version>1.7.1</version>
+            <version>${jsvg.version}</version>
         </dependency>
 
         <!-- For text editor and terminal -->
@@ -76,6 +81,20 @@
             <groupId>com.neuronrobotics</groupId>
             <artifactId>JavaCad</artifactId>
             <version>2.9.5</version>
+            <exclusions>
+                <exclusion>
+                    <groupId>com.aparapi</groupId>
+                    <artifactId>aparapi-jni</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.bouncycastle</groupId>
+                    <artifactId>bcprov-jdk18on</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>org.bouncycastle</groupId>
+                    <artifactId>bcpkix-jdk18on</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
             <groupId>javax.vecmath</groupId>
@@ -94,12 +113,6 @@
             <groupId>org.fxyz3d</groupId>
             <artifactId>fxyz3d</artifactId>
             <version>0.6.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>io.github.classgraph</groupId>
-            <artifactId>classgraph</artifactId>
-            <version>4.8.179</version>
         </dependency>
 
         <!-- For scripting -->

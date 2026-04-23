@@ -21,8 +21,13 @@ package com.willwinder.universalgcodesender.utils;
 import com.willwinder.universalgcodesender.model.PartialPosition;
 import com.willwinder.universalgcodesender.model.Position;
 import com.willwinder.universalgcodesender.model.UnitUtils;
+import org.locationtech.jts.algorithm.ConvexHull;
+import org.locationtech.jts.geom.Coordinate;
+import org.locationtech.jts.geom.GeometryFactory;
 
-import java.util.ArrayList;
+import java.awt.geom.Point2D;
+import java.awt.geom.Rectangle2D;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 
@@ -67,60 +72,12 @@ public class MathUtils {
             return Collections.emptyList();
         }
 
-        // Start from leftmost point, keep moving counterclockwise until reach the start point again.
-        int leftMostPoint = findLeftMostPointIndex(points);
-        int currentPoint = leftMostPoint;
-        List<PartialPosition> result = new ArrayList<>();
-        do {
-            // Add current point to result
-            result.add(points.get(currentPoint));
+        ConvexHull convexHull = new ConvexHull(points.stream()
+                .map(s -> s.getPositionIn(UnitUtils.Units.MM))
+                .map(s -> new Coordinate(s.getX(), s.getY()))
+                .toArray(Coordinate[]::new), new GeometryFactory());
 
-            // Now q is the most counterclockwise with respect to currentPoint.
-            // Set currentPoint as q for next iteration, so that q is added to result 'hull'
-            currentPoint = findNextOuterPointIndex(points, currentPoint);
-
-        } while (currentPoint != leftMostPoint);  // While we don't come to first point
-
-        return result;
-    }
-
-    /**
-     * Given a list of points and the starting index, find the most adjacent outer point counter clockwise
-     * from the starting point
-     *
-     * @param points        a list of points
-     * @param startingIndex the index of the point to originate from
-     * @return the next outer point counter clockwise from the start point
-     */
-    private static int findNextOuterPointIndex(List<PartialPosition> points, int startingIndex) {
-        // Search for a point 'q' such that orientation(currentPoint, i, q) is counterclockwise
-        // for all points 'i'. The idea is to keep track of last visited most counterclock-
-        // wise point in q. If any point 'i' is more counterclock-wise than q, then update q.
-        int q = (startingIndex + 1) % points.size();
-
-        for (int i = 0; i < points.size(); i++) {
-            // If i is more counterclockwise than current q, then update q
-            if (orientation(points.get(startingIndex), points.get(i), points.get(q)) == COUNTER_CLOCKWISE) {
-                q = i;
-            }
-        }
-        return q;
-    }
-
-    /**
-     * Given a list of points find the point furthest to the left
-     *
-     * @param points a list of points
-     * @return the index of the point
-     */
-    private static int findLeftMostPointIndex(List<PartialPosition> points) {
-        int leftMostPoint = 0;
-        for (int i = 1; i < points.size(); i++) {
-            if (points.get(leftMostPoint).getX().isNaN() || points.get(i).getX() < points.get(leftMostPoint).getX()) {
-                leftMostPoint = i;
-            }
-        }
-        return leftMostPoint;
+        return  Arrays.stream(convexHull.getConvexHull().getCoordinates()).map(c -> new PartialPosition(c.x, c.y, UnitUtils.Units.MM)).toList();
     }
 
     public static double round(double value, int decimals) {
@@ -131,17 +88,31 @@ public class MathUtils {
     /**
      * Compares two double values if they are equal or very close to each other using a delta threshold.
      *
-     * @param d1 a double value
-     * @param d2 a double value
-     * @param delta a decimal delta value with the smallest allowed difference, smaller value means more precision.
+     * @param d1    a double value
+     * @param d2    a double value
+     * @param epsilon a decimal delta value with the smallest allowed difference, smaller value means more precision.
      * @return true if they are equal or very close to equal
      */
-    public static boolean isEqual(double d1, double d2, double delta) {
+    public static boolean isEqual(double d1, double d2, double epsilon) {
         if (Double.compare(d1, d2) == 0) {
             return true;
         }
 
-        return Math.abs(d1 - d2) <= delta;
+        return Math.abs(d1 - d2) <= epsilon;
+    }
+
+    /**
+     * Compares if two points are equal or very close to each other using a delta threshold.
+     *
+     * @param a     a point
+     * @param b     a point
+     * @param epsilon a decimal delta value with the smallest allowed difference, smaller value means more precision.
+     * @return true if they are equal or very close to equal
+     */
+    public static boolean isEqual(Point2D a, Point2D b, double epsilon) {
+        double dx = a.getX() - b.getX();
+        double dy = a.getY() - b.getY();
+        return dx * dx + dy * dy <= epsilon * epsilon;
     }
 
     /**
@@ -203,5 +174,65 @@ public class MathUtils {
                 minPos.getY(),
                 minPos.getZ(),
                 units);
+    }
+
+    public static Point2D[] liangBarskyClipLine(Point2D point1, Point2D point2, Rectangle2D bounds) {
+        double dx = point2.getX() - point1.getX();
+        double dy = point2.getY() - point1.getY();
+
+        double t0 = 0.0;
+        double t1 = 1.0;
+
+        double[] p = {-dx, dx, -dy, dy};
+        double[] q = {point1.getX() - bounds.getMinX(), bounds.getMaxX() - point1.getX(), point1.getY() - bounds.getMinY(), bounds.getMaxY() - point1.getY()};
+
+        for (int i = 0; i < 4; i++) {
+            if (p[i] == 0) {
+                if (q[i] < 0) {
+                    return null; // Parallel and outside
+                }
+                continue; // Parallel and inside → no constraint
+            }
+
+            double r = q[i] / p[i];
+            if (p[i] < 0) {
+                t0 = Math.max(t0, r);
+            } else {
+                t1 = Math.min(t1, r);
+            }
+        }
+
+        if (t0 > t1) return null;
+
+        double sx = point1.getX() + t0 * dx;
+        double sy = point1.getY() + t0 * dy;
+        double ex = point1.getX() + t1 * dx;
+        double ey = point1.getY() + t1 * dy;
+
+        return new Point2D[]{new Point2D.Double(sx, sy), new Point2D.Double(ex, ey)};
+    }
+
+    /**
+     * Clamps a value between a min and max value
+     *
+     * @param value the value to clamp
+     * @param min the minimum allowed value
+     * @param max the maximum allowed value
+     * @return the clamped value
+     */
+    public static double clamp(double value, double min, double max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    /**
+     * Clamps a value between a min and max value
+     *
+     * @param value the value to clamp
+     * @param min the minimum allowed value
+     * @param max the maximum allowed value
+     * @return the clamped value
+     */
+    public static int clamp(int value, int min, int max) {
+        return Math.max(min, Math.min(max, value));
     }
 }

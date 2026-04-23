@@ -18,12 +18,15 @@
  */
 package com.willwinder.ugs.nbp.core.actions;
 
-import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.universalgcodesender.gcode.util.GcodeParserException;
 import com.willwinder.universalgcodesender.model.BackendAPI;
+import com.willwinder.universalgcodesender.model.GUIBackend;
 import com.willwinder.universalgcodesender.model.UnitUtils;
+import com.willwinder.universalgcodesender.services.LookupService;
 import com.willwinder.universalgcodesender.types.GcodeCommand;
 import static org.junit.Assert.assertEquals;
+
+import com.willwinder.universalgcodesender.utils.Settings;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -40,82 +43,102 @@ public class OutlineActionTest {
     private OutlineAction outlineAction;
 
     @Before
-    public void setUp() {
+    public void setUp() throws Exception {
+        GUIBackend backend = new GUIBackend();
+        Settings settings = new Settings();
+        backend.applySettings(settings);
+        LookupService.register(backend);
         outlineAction = new OutlineAction();
     }
 
     @Test
     public void generateOutlineCommandsOfSquare() throws IOException, GcodeParserException {
-        BackendAPI backend = CentralLookup.getDefault().lookup(BackendAPI.class);
+        BackendAPI backend = LookupService.lookup(BackendAPI.class);
         backend.getSettings().setPreferredUnits(UnitUtils.Units.MM);
         backend.getSettings().setJogFeedRate(1000);
 
         URL resource = OutlineActionTest.class.getResource("/square.nc");
         List<GcodeCommand> gcodeCommands = outlineAction.generateOutlineCommands(new File(resource.getPath()));
-        assertEquals(gcodeCommands.size(), 4);
+        assertEquals(5, gcodeCommands.size());
         assertEquals("G21G90G1X0Y0F1000", gcodeCommands.get(0).getCommandString());
-        assertEquals("G21G90G1X1000Y0F1000", gcodeCommands.get(1).getCommandString());
+        assertEquals("G21G90G1X0Y1000F1000", gcodeCommands.get(1).getCommandString());
         assertEquals("G21G90G1X1000Y1000F1000", gcodeCommands.get(2).getCommandString());
-        assertEquals("G21G90G1X0Y1000F1000", gcodeCommands.get(3).getCommandString());
+        assertEquals("G21G90G1X1000Y0F1000", gcodeCommands.get(3).getCommandString());
+        assertEquals("G21G90G1X0Y0F1000", gcodeCommands.get(4).getCommandString());
     }
 
     @Test
     public void generateOutlineCommandsOfSquareWitEmptyCoordinate() throws IOException, GcodeParserException {
-        BackendAPI backend = CentralLookup.getDefault().lookup(BackendAPI.class);
+        BackendAPI backend = LookupService.lookup(BackendAPI.class);
         backend.getSettings().setPreferredUnits(UnitUtils.Units.MM);
         backend.getSettings().setJogFeedRate(1000);
 
         URL resource = OutlineActionTest.class.getResource("/square2.nc");
         List<GcodeCommand> gcodeCommands = outlineAction.generateOutlineCommands(new File(resource.getPath()));
-        assertEquals(gcodeCommands.size(), 4);
+        assertEquals(5, gcodeCommands.size());
         assertEquals("G21G90G1X0Y0F1000", gcodeCommands.get(0).getCommandString());
-        assertEquals("G21G90G1X1000Y0F1000", gcodeCommands.get(1).getCommandString());
+        assertEquals("G21G90G1X0Y1000F1000", gcodeCommands.get(1).getCommandString());
         assertEquals("G21G90G1X1000Y1000F1000", gcodeCommands.get(2).getCommandString());
-        assertEquals("G21G90G1X0Y1000F1000", gcodeCommands.get(3).getCommandString());
+        assertEquals("G21G90G1X1000Y0F1000", gcodeCommands.get(3).getCommandString());
+        assertEquals("G21G90G1X0Y0F1000", gcodeCommands.get(4).getCommandString());
     }
 
     @Test
     public void generatingOutlineCommandsOfMixedUnits() throws IOException, GcodeParserException {
-        BackendAPI backend = CentralLookup.getDefault().lookup(BackendAPI.class);
+        BackendAPI backend = LookupService.lookup(BackendAPI.class);
         backend.getSettings().setPreferredUnits(UnitUtils.Units.MM);
         backend.getSettings().setJogFeedRate(1000);
 
         URL resource = OutlineActionTest.class.getResource("/mixing_units.nc");
         List<GcodeCommand> gcodeCommands = outlineAction.generateOutlineCommands(new File(resource.getPath()));
-        assertEquals(gcodeCommands.size(), 4);
+        assertEquals(5, gcodeCommands.size());
         assertEquals("G21G90G1X0Y0F1000", gcodeCommands.get(0).getCommandString());
-        assertEquals("G21G90G1X25.4Y0F1000", gcodeCommands.get(1).getCommandString());
+        assertEquals("G21G90G1X0Y25.4F1000", gcodeCommands.get(1).getCommandString());
         assertEquals("G21G90G1X25.4Y25.4F1000", gcodeCommands.get(2).getCommandString());
-        assertEquals("G21G90G1X0Y25.4F1000", gcodeCommands.get(3).getCommandString());
+        assertEquals("G21G90G1X25.4Y0F1000", gcodeCommands.get(3).getCommandString());
+        assertEquals("G21G90G1X0Y0F1000", gcodeCommands.get(4).getCommandString());
     }
 
     @Test
     public void generatingOutlineWithJogFeedRateInInchPerMinute() throws IOException, GcodeParserException {
-        BackendAPI backend = CentralLookup.getDefault().lookup(BackendAPI.class);
+        BackendAPI backend = LookupService.lookup(BackendAPI.class);
         backend.getSettings().setPreferredUnits(UnitUtils.Units.INCH);
         backend.getSettings().setJogFeedRate(1); // One inch per minute
 
         URL resource = OutlineActionTest.class.getResource("/mixing_units.nc");
         List<GcodeCommand> gcodeCommands = outlineAction.generateOutlineCommands(new File(resource.getPath()));
-        assertEquals(gcodeCommands.size(), 4);
+        assertEquals(5, gcodeCommands.size());
         assertEquals("G21G90G1X0Y0F25.4", gcodeCommands.get(0).getCommandString());
-        assertEquals("G21G90G1X25.4Y0F25.4", gcodeCommands.get(1).getCommandString());
+        assertEquals("G21G90G1X0Y25.4F25.4", gcodeCommands.get(1).getCommandString());
         assertEquals("G21G90G1X25.4Y25.4F25.4", gcodeCommands.get(2).getCommandString());
-        assertEquals("G21G90G1X0Y25.4F25.4", gcodeCommands.get(3).getCommandString());
+        assertEquals("G21G90G1X25.4Y0F25.4", gcodeCommands.get(3).getCommandString());
+        assertEquals("G21G90G1X0Y0F25.4", gcodeCommands.get(4).getCommandString());
     }
 
     @Test
     public void generatingOutlineWithUnknownStartPoint() throws IOException, GcodeParserException {
-        BackendAPI backend = CentralLookup.getDefault().lookup(BackendAPI.class);
+        BackendAPI backend = LookupService.lookup(BackendAPI.class);
         backend.getSettings().setPreferredUnits(UnitUtils.Units.MM);
         backend.getSettings().setJogFeedRate(1);
 
         URL resource = OutlineActionTest.class.getResource("/window.nc");
         List<GcodeCommand> gcodeCommands = outlineAction.generateOutlineCommands(new File(resource.getPath()));
-        assertEquals(gcodeCommands.size(), 4);
-        assertEquals("G21G90G1X18.175Y39.825F1", gcodeCommands.get(0).getCommandString());
-        assertEquals("G21G90G1X18.175Y18.175F1", gcodeCommands.get(1).getCommandString());
-        assertEquals("G21G90G1X31.825Y18.175F1", gcodeCommands.get(2).getCommandString());
-        assertEquals("G21G90G1X31.825Y39.825F1", gcodeCommands.get(3).getCommandString());
+        assertEquals(5, gcodeCommands.size());
+        assertEquals("G21G90G1X18.175Y18.175F1", gcodeCommands.get(0).getCommandString());
+        assertEquals("G21G90G1X18.175Y39.825F1", gcodeCommands.get(1).getCommandString());
+        assertEquals("G21G90G1X31.825Y39.825F1", gcodeCommands.get(2).getCommandString());
+        assertEquals("G21G90G1X31.825Y18.175F1", gcodeCommands.get(3).getCommandString());
+        assertEquals("G21G90G1X18.175Y18.175F1", gcodeCommands.get(4).getCommandString());
+    }
+
+    @Test
+    public void generatingOutlineShouldNotLoopForever() throws IOException, GcodeParserException {
+        BackendAPI backend = LookupService.lookup(BackendAPI.class);
+        backend.getSettings().setPreferredUnits(UnitUtils.Units.MM);
+        backend.getSettings().setJogFeedRate(1);
+
+        URL resource = OutlineActionTest.class.getResource("/headrough.nc");
+        List<GcodeCommand> gcodeCommands = outlineAction.generateOutlineCommands(new File(resource.getPath()));
+        assertEquals(56, gcodeCommands.size());
     }
 }

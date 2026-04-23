@@ -1,8 +1,8 @@
 package com.willwinder.universalgcodesender.fx.component.settings;
 
-import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.universalgcodesender.firmware.FirmwareSetting;
 import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
+import com.willwinder.universalgcodesender.services.LookupService;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import javafx.scene.control.ContentDisplay;
 import javafx.scene.control.TextField;
@@ -56,7 +56,7 @@ public class FirmwareSettingTableCell extends TextFieldTableCell<FirmwareSetting
 
     @Override
     public void commitEdit(String newValue) {
-        BackendAPI backendAPI = CentralLookup.getDefault().lookup(BackendAPI.class);
+        BackendAPI backendAPI = LookupService.lookup(BackendAPI.class);
 
         FirmwareSetting setting = getTableRow().getItem();
         try {

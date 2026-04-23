@@ -18,22 +18,22 @@
  */
 package com.willwinder.ugs.nbp.designer.platform;
 
-import com.willwinder.ugs.nbp.designer.actions.UndoManagerListener;
-import com.willwinder.ugs.nbp.designer.entities.selection.SelectionEvent;
-import com.willwinder.ugs.nbp.designer.entities.selection.SelectionListener;
-import com.willwinder.ugs.nbp.designer.gui.DrawingOverlayContainer;
-import com.willwinder.ugs.nbp.designer.gui.DrawingScrollContainer;
-import com.willwinder.ugs.nbp.designer.gui.PopupMenuFactory;
-import com.willwinder.ugs.nbp.designer.gui.ToolBox;
-import com.willwinder.ugs.nbp.designer.logic.Controller;
-import com.willwinder.ugs.nbp.designer.logic.ControllerFactory;
+import com.willwinder.ugs.designer.actions.UndoManagerListener;
+import com.willwinder.ugs.designer.entities.entities.selection.SelectionEvent;
+import com.willwinder.ugs.designer.entities.entities.selection.SelectionListener;
+import com.willwinder.ugs.designer.gui.DrawingOverlayContainer;
+import com.willwinder.ugs.designer.gui.DrawingScrollContainer;
+import com.willwinder.ugs.designer.gui.PopupMenuFactory;
+import com.willwinder.ugs.designer.gui.ToolBox;
+import com.willwinder.ugs.designer.logic.Controller;
+import com.willwinder.ugs.designer.logic.ControllerFactory;
 import com.willwinder.ugs.nbp.lib.Mode;
-import com.willwinder.ugs.nbp.lib.lookup.CentralLookup;
 import com.willwinder.universalgcodesender.firmware.FirmwareSettingsException;
 import com.willwinder.universalgcodesender.listeners.UGSEventListener;
 import com.willwinder.universalgcodesender.model.BackendAPI;
 import com.willwinder.universalgcodesender.model.UGSEvent;
 import com.willwinder.universalgcodesender.model.events.FirmwareSettingEvent;
+import com.willwinder.universalgcodesender.services.LookupService;
 import org.openide.awt.UndoRedo;
 import org.openide.cookies.CloseCookie;
 import org.openide.loaders.DataNode;
@@ -72,7 +72,7 @@ public class DesignerTopComponent extends TopComponent implements UndoManagerLis
     public DesignerTopComponent(UgsDataObject dataObject) {
         super();
         this.dataObject = dataObject;
-        backend = CentralLookup.getDefault().lookup(BackendAPI.class);
+        backend = LookupService.lookup(BackendAPI.class);
         backend.addUGSEventListener(this);
         controller = ControllerFactory.getController();
         initSettingsAdapter();
