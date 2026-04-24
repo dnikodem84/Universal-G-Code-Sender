@@ -19,6 +19,7 @@
 package com.willwinder.ugs.designer.gui;
 
 import com.willwinder.ugs.designer.actions.OpenStockSettingsAction;
+import com.willwinder.ugs.designer.actions.OpenToolLibraryAction;
 import com.willwinder.ugs.designer.actions.OpenToolSettingsAction;
 import com.willwinder.ugs.designer.logic.Controller;
 import com.willwinder.universalgcodesender.model.BackendAPI;
@@ -106,6 +107,13 @@ public class DrawingContainer extends JPanel implements ComponentListener, Mouse
         toolButton.setMaximumSize(new Dimension(100, 40));
         toolButton.addActionListener(new OpenToolSettingsAction(controller));
         buttonPanel.add(toolButton);
+
+        add(Box.createHorizontalStrut(6));
+        PanelButton libraryButton = new PanelButton("Library", "Tools");
+        libraryButton.setMinimumSize(new Dimension(60, 40));
+        libraryButton.setMaximumSize(new Dimension(100, 40));
+        libraryButton.addActionListener(new OpenToolLibraryAction(controller));
+        buttonPanel.add(libraryButton);
 
         add(Box.createHorizontalStrut(6));
         PanelButton stockButton = new PanelButton("Stock", controller.getSettings().getStockSizeDescription());
